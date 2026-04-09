@@ -244,7 +244,7 @@ def build_deepspeed_config(stage: int, micro_batch_size: int, gradient_accumulat
     # the model's computational load and efficiency in TFLOPS.
     "flops_profiler": { 
         "enabled": True, 
-        "output_file":"flops_profile.txt",
+        "output_file":f"./results/reflops_profile_{stage}.txt",
         "profile_step": 10 # profiles FLOPs at step 10 for an estimate of model FLOPs.
 
         }, 
@@ -254,7 +254,7 @@ def build_deepspeed_config(stage: int, micro_batch_size: int, gradient_accumulat
         "enabled": True,
         "verbose": False,
         "prof_all": True,
-        "output_dir": "./logs"
+        "output_dir": f"./logs/stage_{stage}"
     },
     # Visual report (graphs instead of text tables)
     "monitor": {
@@ -265,13 +265,13 @@ def build_deepspeed_config(stage: int, micro_batch_size: int, gradient_accumulat
     "tensorboard": { 
         "enabled": true,
         "output_path": "./results/tensorboard_logs",
-        "job_name": f"gpt2_zero_stage_{stage}" 
+        "job_name": f"gpt2_zero_stage_{stage}"
     },
     # This will create a CSV file with step-wise metrics that we can use to plot 
     # graphs of throughput and VRAM usage over time.
     "csv_monitor": { 
         "enabled": true,
-        "output_uri": "./results/performance_report.csv"
+        "output_file": f"./results/metrics_stage_{stage}.csv"
     }
     },
     # This will give us a detailed breakdown of time spent in different parts of the training loop, 

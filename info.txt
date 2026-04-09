@@ -1,0 +1,38 @@
+Instructions For Assignment 2 (Please read carefully):
+Both parts of the assignment are available as assignment_2/a2p1_v0.1.py and assignment_2/a2p2_v0.1.py.
+ More instructions on how to submit the assignment will follow as minor updates.
+Each team will be creating a conda environment for one of the users. You might need to edit files inside
+ the installed packages in your conda environment. Please create only one environment per team to avoid 
+ bloat on the disk. If we notice, more than one environment for a team, we will randomly disable one member's 
+ account for the team. Steps to create a conda env:
+Login to the head node of the Turing cluster using your SSH credentials.
+Run the command /apps/conda_setup.sh
+Follow the prompts and an environment should be created as your username at /mnt/data/miniconda3/envs with 
+basic packages like torch, deepspeed, numpy, transformers and datasets.
+All jobs must be submitted via Slurm. Once again, if we get to know that a job is running without slurm, you 
+may be penalized. Each team has been allocated 4 hour slots with a total of 4 GPUs. The slots are assigned 
+randomly and cannot be changed. You can only submit jobs within your slot. Your job will be terminated if 
+it exceeds the slot duration, so keep checkpoints that you can resume from. If  the srun command duration 
+( -t flag) exceeds your slot limits, the job may not start.
+You can check whether your slot is active right now or when it will be active next using the command
+ /apps/myslot.sh. Rule of thumb: if the current active slot shows as team04_20260404_0000, this means currently 
+ the slot belongs to Team 4 and it started at 00:00 and will end at 04:00.
+The preprocessing part of the assignment must  be run using N=1 and num_gpus=1. If you do not follow this, you
+ might end up with corrupt data outputs.
+The training part of the assignment can be run using 1-4 GPUs. More instructions in the python script.
+PLEASE TRY TO FINISH THE SETUP AS EARLY AS POSSIBLE AND LET US KNOW IF YOU ARE FACING ANY ISSUES. THE CONDA 
+SETUP CAN BE DONE OUTSIDE YOUR SLOT.
+Slots were created randomly using the script /apps/generate_reservations.py (slots will start from 4th April 00:00)
+team, day_type, time, users
+team08,even,00:00,chethan1|yuvarajdc
+team06,even,04:00,kevalp|yashvijay
+team03,even,08:00,kavyaduvvuri|lavishsingh
+team09,even,12:00,suhaskamath|moupriyas
+team10,even,16:00,amiteshp|abhinavrawat
+team07,even,20:00,vinay2023|subhadeeps
+team12,odd,00:00,csakshi|harshsaxena
+team04,odd,04:00,aman1|sbhavesh
+team05,odd,08:00,saisandeshk|juhitharadha
+team01,odd,12:00,anilkd|maddurig
+team02,odd,16:00,razeena
+team11,odd,20:00,garvitsingh|abhishekkj

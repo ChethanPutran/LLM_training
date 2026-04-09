@@ -1,0 +1,22 @@
+>>> Starting ML Assignment 2 Pipeline (Part 1)...
+Tokenizing raw dataset from /mnt/data/ds256_2026/as2/train_dataset...
+GPT2Tokenizer(name_or_path='/mnt/data/ds256_2026/as2/gpt2_tokenizer', vocab_size=50257, model_max_length=1024, padding_side='right', truncation_side='right', special_tokens={'bos_token': '<|endoftext|>', 'eos_token': '<|endoftext|>', 'unk_token': '<|endoftext|>'}, added_tokens_decoder={
+	50256: AddedToken("<|endoftext|>", rstrip=False, lstrip=False, single_word=False, normalized=True, special=True),
+})
+Saving the dataset (4/4 shards): 100%|██████████| 577736/577736 [00:22<00:00, 25709.42 examples/s] 
+Tokenization completed in 23.22 seconds.
+Tokenization complete.
+Loading tokenized dataset from /scratch/chethan1/SSDS/llm_training/outputs/train_dataset/tokenized...
+STEP 1: Tokenization schema validation passed!
+>>> Starting Step 2: Preprocessing...
+Map:   0%|          | 0/577736 [00:00<?, ? examples/s]Caching processed dataset at /scratch/chethan1/SSDS/llm_training/outputs/train_dataset/tokenized/cache-cad50fbe2b6caed9.arrow
+Map: 100%|██████████| 577736/577736 [02:25<00:00, 3978.22 examples/s]
+Loading cached processed dataset at /scratch/chethan1/SSDS/llm_training/outputs/train_dataset/tokenized/cache-cad50fbe2b6caed9_*_of_00001.arrow
+Chunking train dataset...
+Saving the dataset (4/4 shards): 100%|██████████| 786936/786936 [00:22<00:00, 34584.81 examples/s] 
+Processing completed in 168.19  seconds.
+Running DataLoader sanity check...
+Yielded input_ids shape: torch.Size([1, 512])
+STEP 2: Preprocessing (DataLoader sanity check) passed!
+Part 1 Complete! You can now proceed to run the training script.
+Total Execution Time: 192.33s

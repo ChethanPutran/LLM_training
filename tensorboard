@@ -1,0 +1,29 @@
+Run 4 separate experiments, saving each to a different directory: logs/stage0/, logs/stage1/, etc.
+
+Use the TensorBoard Monitor for all runs.
+
+Overlay the plots: In TensorBoard, you can select all four runs simultaneously. This will automatically generate a single graph with four different colored lines (one for each ZeRO stage).
+
+One graph for VRAM Utilization.
+
+One graph for Throughput.
+
+This "overlapped" chart is exactly what professors look for in a performance analysis report because it visually demonstrates the point of diminishing returns where memory savings no longer justify the speed loss.
+
+
+ # Master index 
+    master_index = {
+        "timestamp":      datetime.datetime.now().isoformat(),
+        "base_directory": BASE_DIR,
+        "world_size":     WORLD_SIZE,
+        "stages":         {str(k): v for k, v in all_results_paths.items()},
+    }
+    master_path = os.path.join(BASE_DIR, "master_index.json")
+    with open(master_path, "w") as f:
+        json.dump(master_index, f, indent=4)
+ 
+    print(f"\n{'='*80}")
+    print(f"All ZeRO stages completed!")
+    print(f"Results: {BASE_DIR}")
+    print(f"Master index: {master_path}")
+    print(f"{'='*80}")

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Hard deadline for the slot
-SLOT_END_TIME="03:50:00"
+SLOT_END_TIME="03:58:00"
 END_SECONDS=$(date -d "$(date +%Y-%m-%d) $SLOT_END_TIME" +%s)
 
 # STAGES=(0 1 2 3)

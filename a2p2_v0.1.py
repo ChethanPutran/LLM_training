@@ -101,7 +101,6 @@ args = parser.parse_args()
 STAGE = args.stage
 OUTPUTFILE = args.outputfile
 
-os.makedirs(f"/scratch/chethan1/SSDS/llm_training/outputs/{STAGE}", exist_ok=True)
 
 BASE_DIR = os.path.abspath(f"/scratch/chethan1/SSDS/llm_training/outputs/stage_{STAGE}")
 DATA_DIR = os.path.abspath(f"/scratch/chethan1/SSDS/llm_training/outputs/")
@@ -213,103 +212,93 @@ Your report MUST include:
 
 
 # DeepSpeed config builder
-def build_deepspeed_config(stage: int, micro_batch_size: int, gradient_accumulation: int) -> dict:
+
+def build_deepspeed_config(stage: int, micro_batch_size: int, gradient_accumulation: int, total_num_steps: int) -> dict:
     """
     Build a DeepSpeed configuration dictionary based on the specified ZeRO stage and training parameters.
     """
     
     # Hyper parameters are from standard GPT-2 training configs
     ds_config = {
-    "train_micro_batch_size_per_gpu": micro_batch_size,
-    "gradient_accumulation_steps":gradient_accumulation,
-    "optimizer": {
-        "type": "AdamW",
-        "params": {
-            "lr": 5e-5,
-            "betas":   [0.9, 0.95],
-            "eps":  1e-8,
-            "weight_decay": 0.1,
+        "train_micro_batch_size_per_gpu": micro_batch_size,
+        "gradient_accumulation_steps": gradient_accumulation,
+        "optimizer": {
+            "type": "AdamW",
+            "params": {
+                "lr": 5e-5,
+                "betas": [0.9, 0.95],
+                "eps": 1e-8,
+                "weight_decay": 0.1,
+            },
         },
-    },
-    "scheduler": {
-        "type": "WarmupDecayLR",
-        "params": {
-            "warmup_min_lr":   0,
-            "warmup_max_lr":   5e-5,
-            "warmup_num_steps": 100,
-            "total_num_steps":  1000,
+        "scheduler": {
+            "type": "WarmupDecayLR",
+            "params": {
+                "warmup_min_lr": 1e-6,
+                "warmup_max_lr": 5e-5,
+                "warmup_num_steps": 10,  # 10% of your 100 update steps
+                "total_num_steps": total_num_steps, 
+            },
         },
-    },
-    "gradient_clipping":    1.0,
-    "fp16":                 {"enabled": True, "loss_scale": 0},
-    "steps_per_print":      1,
-
-    # This will log the time taken for each step, including a breakdown of forward,
-    #  backward, and step times.
-    "wall_clock_breakdown": True, # enables detailed timing breakdown in DeepSpeed logs
-
-    # This will profile the FLOPs at the specified step, giving us an estimate of 
-    # the model's computational load and efficiency in TFLOPS.
-    "flops_profiler": {
+        "gradient_clipping": 1.0,
+        "fp16": {"enabled": True, "loss_scale": 0},
+        "steps_per_print": 1,
+        
+        # This will log the time taken for each step, including a breakdown of forward,
+        # backward, and step times.
+        "wall_clock_breakdown": True,
+        
+        # This will profile the FLOPs at the specified step
+        "flops_profiler": {
             "enabled": True,
             "output_file": f"{SCRATCH_DIR}/reflops_profile_{stage}.txt",
-            # profiles FLOPs at step 10 for an estimate of model FLOPs.
-            "profile_step": 10,
-            "module_depth": 0,  # Set to 0 for overall model FLOPs, or higher for layer-wise breakdown
-            "detailed": False, # Set to True for a more detailed breakdown of FLOPs by module
+            "profile_step": 1,
+            "module_depth": 0,
+            "detailed": True,
             "top_modules": 1,
         },
-    # This will log the communication patterns, message sizes, and bandwidth during training, 
-    # which is crucial for analyzing the communication overhead in ZeRO stages.
-    "comms_logger": { 
-        "enabled": True,
-        "verbose": False,
-        "prof_all": True
-    },
-    # Visual report (graphs instead of text tables)
-    "monitor": {
-    "enabled": True,
-    "tag": "gpt2_zero_analysis",
-    # This will create TensorBoard logs that we can use to visualize training metrics over time,
-    #  including throughput and VRAM usage.
-    "tensorboard": { 
-        "enabled": True,
-        "output_path": f"{SCRATCH_DIR}/tensorboard_logs",
-        "job_name": f"gpt2_zero_stage_{stage}"
-    },
-    # This will create a CSV file with step-wise metrics that we can use to plot 
-    # graphs of throughput and VRAM usage over time.
-    "csv_monitor": { 
-        "enabled": True,
-        "output_file": f"{SCRATCH_DIR}/metrics_stage_{stage}.csv"
-    }
-    }
-    ,
-        "runtime": {
-                "timers": {
-                    "enabled": True
-                }
+        # This will log the communication patterns
+        "comms_logger": { 
+            "enabled": True,
+            "verbose": False,
+            "prof_all": True
+        },
+        
+        # Visual report
+        "monitor": {
+            "enabled": True,
+            "tag": "gpt2_zero_analysis",
+            "tensorboard": { 
+                "enabled": True,
+                "output_path": f"{SCRATCH_DIR}/tensorboard_logs",
+                "job_name": f"gpt2_zero_stage_{stage}"
             },
-    # This will give us a detailed breakdown of time spent in different parts of the training loop, 
-    # which is crucial for analyzing the communication overhead in ZeRO stages.
-    "timers":{ 
-        "enabled": True
+            "csv_monitor": { 
+                "enabled": True,
+                "output_file": f"{SCRATCH_DIR}/metrics_stage_{stage}.csv"
+            }
+        },
+        
+        # Timers for detailed breakdown
+        "timers": { 
+            "enabled": True
         },
     }
-   
+    
+    # Add ZeRO optimization if stage > 0
     if stage > 0:
         ds_config["zero_optimization"] = {
-            "stage":                 stage,
-            "allgather_partitions":  stage >= 2,
+            "stage": stage,
+            "allgather_partitions": stage >= 2,
             "allgather_bucket_size": 5e8 if stage >= 2 else 0,
-            "overlap_comm":          stage >= 2,
-            "reduce_scatter":        stage >= 2,
-            "reduce_bucket_size":    5e8 if stage >= 2 else 0,
-            "contiguous_gradients":  stage >= 2,
+            "overlap_comm": stage >= 2,
+            "reduce_scatter": stage >= 2,
+            "reduce_bucket_size": 5e8 if stage >= 2 else 0,
+            "contiguous_gradients": stage >= 2,
             "round_robin_gradients": stage == 3,
         }
+    
     return ds_config
-
 
 
 def step_3_training():
@@ -323,422 +312,302 @@ def step_3_training():
     time_str = now_dt.strftime("%H-%M-%S")
     checkpoint_dir = os.path.join(BASE_DIR, "checkpoints", date_str, time_str)
     hf_output_dir  = os.path.join(BASE_DIR, "gpt2_trained", date_str, time_str)
+    checkpoint_dir = os.path.join(BASE_DIR, "checkpoints", date_str, time_str)
 
-    ## start your edits here  =================
+    # date_str = "2026-04-14"
+    # time_str = "02-17-44"
+
+    # return "/scratch/chethan1/SSDS/llm_training/outputs/stage_0/checkpoints/2026-04-14/02-17-44"
+    # if STAGE == 3:
+    #     return os.path.join(BASE_DIR, date_str, time_str)
+    # return os.path.join(BASE_DIR, "gpt2_trained", date_str, time_str)
     print(f"\n{'='*80}")
     print(f"Training ZeRO Stage {STAGE}")
     print(f"{'='*80}")
-
-    deepspeed.init_distributed()
- 
-    # Derive world size from the process group
-    WORLD_SIZE = dist.get_world_size()
+    
+    global_rank = dist.get_rank()
     LOCAL_RANK = int(os.environ["LOCAL_RANK"])
+    torch.cuda.set_device(LOCAL_RANK)
+    WORLD_SIZE = dist.get_world_size()
+
+    # # Initialize distributed training with proper device mapping
+    # LOCAL_RANK = int(os.environ.get("LOCAL_RANK", 0))
+    # WORLD_SIZE = int(os.environ.get("WORLD_SIZE", 1))
+    # global_rank = int(os.environ.get("RANK", 0))
+
+    
+    # Training parameters
     TOTAL_NUM_WEIGHT_UPDATE_STEPS = 100 
     GRADIENT_ACCUMULATION = 8
-    TOTAL_STEPS = TOTAL_NUM_WEIGHT_UPDATE_STEPS * GRADIENT_ACCUMULATION
     MICRO_BATCH_SIZE = 4
     CHECKPOINT_FOR_STEP = 10
     WARMUP_STEPS = 0
     REPORT_SUMMARY_STEP = 10
     PROFILE_PER_STEP = 5
     PRINT_PROFILE = False
-    TRAIN_BATCH_SIZE = MICRO_BATCH_SIZE * GRADIENT_ACCUMULATION * WORLD_SIZE
- 
-    torch.cuda.set_device(LOCAL_RANK)
-    print(f"World Size: {WORLD_SIZE}, Local Rank: {LOCAL_RANK}, Train Batch Size: {TRAIN_BATCH_SIZE} tokens/step")
+    
+    
+    # Initialize DeepSpeed distributed backend with device ID
+    deepspeed.init_distributed(dist_backend="nccl")
 
-    # Initialize NVML for precise NVIDIA stats
+    # Re-get ranks after initialization
+    global_rank = dist.get_rank()
+    WORLD_SIZE = dist.get_world_size()
+    
+    print(f"World Size: {WORLD_SIZE}, Local Rank: {LOCAL_RANK}")
+
+    # Initialize NVML
     pynvml.nvmlInit()
-
     handle = pynvml.nvmlDeviceGetHandleByIndex(torch.cuda.current_device())
 
     print("Generating DeepSpeed configuration...")
-    # DeepSpeed engine
-    ds_config  = build_deepspeed_config(STAGE, MICRO_BATCH_SIZE, GRADIENT_ACCUMULATION)
-
+    ds_config = build_deepspeed_config(STAGE, MICRO_BATCH_SIZE, GRADIENT_ACCUMULATION, TOTAL_NUM_WEIGHT_UPDATE_STEPS)
     
-    print("DEBUG:Loading dataset and creating DataLoader...")
+    print("DEBUG: Loading dataset and creating DataLoader...")
+    raw_dataset = load_from_disk(final_train_dataset)
+    dataset = raw_dataset.with_format("torch")
 
-    # Load your dataset
-    raw_dataset: HFDataset = load_from_disk(final_train_dataset) # type: ignore
-
-    # Convert to PyTorch tensors for DeepSpeed. 
-    # This will allow us to use the dataset directly with the DeepSpeed engine, 
-    # which expects PyTorch tensors for efficient data loading and processing.
-    dataset: Dataset = raw_dataset.with_format("torch") # type: ignore
-
-    # Define the Sampler
-    # 'rank' and 'num_replicas' are automatically handled if you've initialized distributed
     sampler = DistributedSampler(
         dataset, 
-        num_replicas=dist.get_world_size(), # Should be 4
-        rank=dist.get_rank(),               # 0, 1, 2, or 3
-        shuffle=True,                       # Recommended for pre-training
+        num_replicas=WORLD_SIZE,
+        rank=global_rank,
+        shuffle=True,
         seed=42
     )
 
-    # Create the DataLoader
     train_dataloader = DataLoader(
         dataset,
-        batch_size=ds_config['train_micro_batch_size_per_gpu'],
+        batch_size=MICRO_BATCH_SIZE,
         sampler=sampler, 
         num_workers=4,
         pin_memory=True,
-        shuffle=False, # shuffle must be False when using a sampler
+        shuffle=False,
     )
 
-
-    # Model
-    print("DEBUG:Initializing model...")
-
+    print("DEBUG: Initializing model...")
     model_config = AutoConfig.from_pretrained(GPT2_CONFIG_DIR)
     model = AutoModelForCausalLM.from_config(model_config)
 
-    config_path = os.path.join(BASE_DIR, "deepspeed_config.json")
-
-    print(f"DEBUG:Saving DeepSpeed config to {config_path}...")
-    with open(config_path, "w") as f:
-        json.dump(ds_config, f, indent=4)
-
-    print("DEBUG:Initializing DeepSpeed engine...")
-
-    # Initialize DeepSpeed engine with the model and config. 
-    # This will handle model partitioning, optimizer setup, and mixed precision.
+    print("DEBUG: Initializing DeepSpeed engine...")
     deep_speed_engine, optimizer, _, lr_scheduler = deepspeed.initialize(
         model=model,
         model_parameters=model.parameters(),
         config=ds_config,
     )
 
-    print("DEBUG:Initializing Profiler...")
-
-    # Initialize the Profiler
-    # This will track TFLOPS and Latency breakdown
-    prof = FlopsProfiler(model)
+    print("DEBUG: Starting training...")
     
-    
-    # Training loop 
-    print("DEBUG:Starting training...")
-
-    # Setup timing events for measuring step time (including communication in ZeRO stages)
+    # Setup timing
     start_event = torch.cuda.Event(enable_timing=True)
     end_event = torch.cuda.Event(enable_timing=True)
-
-    # *************************************** THE LLM TRAINING LOOP ****************************************************
-    # Load from checkpoint if available to resume training. 
-    # This will ensure we can continue training from the last saved state in case of interruptions,
-    # and also allows us to have a checkpointed model for each ZeRO stage for later evaluation.
-    # By passing tag=None, DeepSpeed automatically reads the 'latest' file
-    load_path, client_state = deep_speed_engine.load_checkpoint(
-        checkpoint_dir, 
-        tag=None 
-    )
-
-    if load_path is not None:
-        # DeepSpeed successfully found and loaded a checkpoint
-        # We retrieve the step count we saved manually in the 'client_state' dict
-        current_step = client_state['step']
-        print(f"DEBUG:RANK {dist.get_rank()}: Successfully resumed from {load_path} at step {current_step}")
-    else:
-        # No checkpoint found, starting from scratch
-        current_step = 0
-        print(f"DEBUG:RANK {dist.get_rank()}: No checkpoint found, starting from step 0")
-
-    # Start total training timer
+    
+    # Training state
+    step = 0  # This is the number of weight updates completed
+    micro_step = 0
+    total_tokens = 0
+    total_training_time = 0
     total_start_time = time.perf_counter()
 
-    # Total parameters (e.g., 51,210,000)
+    # Get total parameters for calculations
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    # Assuming FP16 or BF16 (2 bytes per parameter)
-    bytes_per_param = 2
-
-    # Initialize data iterator once
+    bytes_per_param = 2  # FP16
+    
+    
+    print(f"DEBUG: Starting training loop - Target weight updates: {TOTAL_NUM_WEIGHT_UPDATE_STEPS}")
+    
+    # Training loop
     data_iter = iter(train_dataloader)
-
-    total_tokens = 0  # To track total tokens processed for throughput calculation
-
-    global_rank = dist.get_rank()
-
-    print(f"DEBUG: GLOBAL RANK {global_rank} LOCAL RANK {LOCAL_RANK} - Starting training loop from step {current_step} to {TOTAL_STEPS} with ZeRO Stage {STAGE}")
-
-    RANK_OUTPUTFILE = f"{OUTPUTFILE.replace('.txt', '')}_rank_{global_rank}.txt"
-
-    for step in range(current_step, TOTAL_STEPS):
-        # Re-set the seed for the sampler in distributed training to ensure each node gets different data per step
-        # It ensures the data is reshuffled differently for each step
-        if hasattr(train_dataloader.sampler, 'set_epoch'):
-                train_dataloader.sampler.set_epoch(step)
+    epoch = 0
+    
+    while step < TOTAL_NUM_WEIGHT_UPDATE_STEPS:
         try:
             batch = next(data_iter)
         except StopIteration:
-            # Sync ranks before resetting to prevent one rank from racing ahead
-            dist.barrier(device_ids=[torch.cuda.current_device()]) 
+            epoch += 1
+            sampler.set_epoch(epoch)
             data_iter = iter(train_dataloader)
             batch = next(data_iter)
-
-        # Warmup Phase: We can skip profiling and logging during the warmup 
-        # phase to avoid noisy data.
-        is_profiling_step = (step >= WARMUP_STEPS and (step % PROFILE_PER_STEP == 0))
         
-        # Synchronization Barrier: Before the profiling step, we add a barrier
-        # to ensure all nodes start the measured window at the same time. This
-        # is crucial for accurate timing and fair comparison across ZeRO stages
-        torch.distributed.barrier()
-
-        # Start profiling at the designated step. This will capture the forward, 
-        # backward, and step times, as well as compute the TFLOPS
-        if is_profiling_step:
-            prof.start_profile()
-
-        # Record start event before the forward pass to capture total step time 
-        # including communication in ZeRO stages.
-        start_event.record(torch.cuda.current_stream())
-
-        # Forward pass with DeepSpeed engine. 
-        # DeepSpeed will handle the .to(device) and distributed data partitioning for us
-        inputs = {k: v.to(deep_speed_engine.device, non_blocking=True) for k, v in batch.items()} # Move batch to the correct GPU
-
+        # Move batch to device
+        inputs = {k: v.to(deep_speed_engine.device, non_blocking=True) for k, v in batch.items()}
         if "labels" not in inputs:
             inputs["labels"] = inputs["input_ids"].clone()
-     
         if "attention_mask" not in inputs:
             inputs["attention_mask"] = torch.ones_like(inputs["input_ids"])
-
-        # In ZeRO-3, the forward pass will include hidden communication overhead as parameters
-        # are fetched from other nodes.
+        
+        # Forward pass
         outputs = deep_speed_engine(**inputs)
         loss = outputs.loss
-
-        # Backward pass with DeepSpeed engine.
-        # DeepSpeed manages the ZeRO gradient sharding/reduction here
+        
+        # Backward pass
         deep_speed_engine.backward(loss)
-
-        # Optimizer step with DeepSpeed engine. 
-        # This will handle gradient clipping, weight updates, and LR scheduling
-        deep_speed_engine.step()
-
-        # Record end event after step to capture total time including communication in ZeRO stages.
-        end_event.record(torch.cuda.current_stream())
-
-        # Block CPU until GPU finishes work to ensure accurate timing
-        torch.cuda.synchronize() 
-                    
-        # Stopping the profiler at the end of the step will give us the breakdown
-        #  of forward/backward/step times, as well as TFLOPS.
-        if is_profiling_step:
-            prof.stop_profile()
-
-            torch.cuda.synchronize()
-
-            try:
-                # Pull the key metrics from the profiler for reporting
-                flops = prof.get_total_flops()
-                macs = prof.get_total_macs()
-                params = prof.get_total_params()
-
-                if PRINT_PROFILE:
-                    prof.print_model_profile(profile_step=step)
-
-            except Exception as e:
-                # print(f"DEBUG:RANK {dist.get_rank()}: Profiler not ready at step {step}")
-                # print(f"DEBUG:Error retrieving profiler metrics: {e}")
-                # Fallback if the first profiling step is still warm
-                flops, macs, params = 0, 0, 0
-                # print("DEBUG:Profiler attributes not yet ready.")
-            # End the profiler to reset for the next measured step.
-            # This is important because the profiler accumulates data, and we want to isolate each profiling step.
-            prof.end_profile() 
-
-            # Capture the true VRAM usage using NVML, which includes all CUDA context memory, not just PyTorch tensors.
-            mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
-
-            # Get the allocated memory from PyTorch (this is what the DS logs will report)
-            allocated_Gb = torch.cuda.memory_allocated() / (1024 ** 3)
-            reserved_Gb = torch.cuda.memory_reserved() / (1024 ** 3)
-
-            # Get the true VRAM usage from NVML (this is the "hardware reality" that includes
-            # all memory used by the process, including fragmentation and non-PyTorch allocations)
-            mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
-            util = pynvml.nvmlDeviceGetUtilizationRates(handle)
-            temp_c = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
-            peak_vram_Gb = mem_info.used / (1024 ** 3)
-            utilization_pct = util.gpu
-
-                    
-            # Total step time including communication overhead in ZeRO stages
-            # This is the most critical metric for the report, as it captures the real-world
-            #  impact of ZeRO's communication overhead on training speed
+        
+        micro_step += 1
+        
+        # Check if we should update weights
+        if micro_step % GRADIENT_ACCUMULATION == 0:
+            # Start timing for this weight update
+            torch.cuda.synchronize(device=LOCAL_RANK)
+            start_event.record(torch.cuda.current_stream())
+            
+            # Optimizer step
+            deep_speed_engine.step()
+            
+            torch.cuda.synchronize(device=LOCAL_RANK)
+            end_event.record(torch.cuda.current_stream())
+            torch.cuda.synchronize(device=LOCAL_RANK)
+            
+            # Calculate step time
             step_time = start_event.elapsed_time(end_event)
             
-            
-            # Throughput calculation
-            tokens_per_step = MICRO_BATCH_SIZE * WORLD_SIZE * block_size 
+            # Calculate throughput
+            tokens_per_step = MICRO_BATCH_SIZE * WORLD_SIZE * GRADIENT_ACCUMULATION * block_size
             total_tokens += tokens_per_step
             tokens_per_second = tokens_per_step / (step_time / 1000)
-
             
+            # Get metrics only on rank 0 and at profiling steps
+            if global_rank == 0 and (step % PROFILE_PER_STEP == 0 or step == 0):
 
-            if global_rank == 0:
-                # Retrieve standard and DeepSpeed-specific metrics
-                # --- 1. Data Prep & Calculations ---
-                lr = deep_speed_engine.get_lr()[0]
-                grad_norm = deep_speed_engine.get_global_grad_norm()
-
-                # --- 1. Data Prep & Calculations ---
-                lr = deep_speed_engine.get_lr()[0]
-                grad_norm = deep_speed_engine.get_global_grad_norm()
-
-                # Safeguard against None values for logging
-                safe_lr = lr if lr is not None else 0.0
-                safe_grad_norm = grad_norm if grad_norm is not None else 0.0
+                # Get memory info
+                mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                allocated_Gb = torch.cuda.memory_allocated(device=LOCAL_RANK) / (1024 ** 3)
+                reserved_Gb = torch.cuda.memory_reserved(device=LOCAL_RANK) / (1024 ** 3)
+                peak_vram_Gb = mem_info.used / (1024 ** 3)
+                util = pynvml.nvmlDeviceGetUtilizationRates(handle)
+                temp_c = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
                 
-                # Raw Latencies (ms)
-                fwd_t = deep_speed_engine.timers('forward').elapsed(reset=False) * 1000
-                bwd_t = deep_speed_engine.timers('backward').elapsed(reset=False) * 1000
-                ag_t  = deep_speed_engine.timers('allgather').elapsed(reset=False) * 1000
-                rs_t  = deep_speed_engine.timers('reduce_scatter').elapsed(reset=False) * 1000
-                
-                compute_t = fwd_t + bwd_t
-                comm_t    = ag_t + rs_t
-                total_t   = compute_t + comm_t
-                
-                # --- 2. Efficiency Ratios ---
-                # Comm Tax: % of step spent on networking
-                comm_tax_pct = (comm_t / total_t * 100) if total_t > 0 else 0
-                # Comp-to-Comm: Efficiency ratio (>1 is compute-bound, <1 is IO-bound)
-                comp_comm_ratio = (compute_t / comm_t) if comm_t > 0 else 0
-                # Memory Efficiency: % of reserved VRAM actually utilized
+                # Memory efficiency
                 mem_eff_pct = (allocated_Gb / peak_vram_Gb * 100) if peak_vram_Gb > 0 else 0
-                # MFU: Model FLOPs Utilization (Ratio of actual vs theoretical peak)
-                # Note: Replace 312 with your GPU's peak TFLOPS (e.g., A100=312, V100=125)
-                gpu_peak_tflops = 312 
-                mfu_pct = ((flops / 1e12) / gpu_peak_tflops * 100) if gpu_peak_tflops > 0 else 0
+                
+                # Get learning rate and gradient norm
+                lr = deep_speed_engine.get_lr()[0] if deep_speed_engine.get_lr() else 5e-5
+                
+                # Get gradient norm safely
+                try:
+                    print("DEBUG: Attempting to get global gradient norm...")
+                    grad_norm = deep_speed_engine.get_global_grad_norm()
+                    if grad_norm is None:
+                        grad_norm = 0.0
+                    print(f"DEBUG: Gradient norm obtained: {grad_norm}")
+                except:
+                    grad_norm = 0.0
 
-                # --- 3. Communication Volume ---
+                # Calculate approximate FLOPs (simple estimation)
+                # For GPT-2: ~6 * params * tokens per step
+                estimated_flops = 6 * total_params * tokens_per_step
+                gpu_peak_tflops = 312  # A100 FP16 peak
+                mfu_pct = ((estimated_flops / 1e12) / gpu_peak_tflops * 100) if gpu_peak_tflops > 0 else 0
+                
+                # Communication volume (theoretical)
                 multiplier = 3 if STAGE == 3 else 2
                 step_vol_gb = (total_params * bytes_per_param * multiplier) / (1024**3)
 
-
-                # --- THE COMPREHENSIVE SCRAPPABLE BLOCK ---
-                print(f"METRIC_START STAGE: {STAGE} | STEP: {step} {'='*25}", flush=True)
-                
-                # Progress & Training Health
-                print(f"METRIC_PROGRESS: loss={loss.item():.4f}, lr={safe_lr:.8f}, grad_norm={safe_grad_norm:.4f}", flush=True)
-                
-                # Speed & Hardware
-                print(f"METRIC_SPEED: step_time_ms={step_time:.2f}, throughput_tps={tokens_per_second:.2f}, util_pct={utilization_pct}, flops_t={flops/1e12:.2f} TFLOPS, macs={macs/1e9:.2f} GMACs, params={params/1e6:.2f} M params, temp_c={temp_c}C ", flush=True)
-                
-                # Memory Metrics
-                print(f"METRIC_VRAM: alloc_gb={allocated_Gb:.2f}, peak_gb={peak_vram_Gb:.2f}, reserved_gb={reserved_Gb:.2f}, mem_eff_pct={mem_eff_pct:.2f}", flush=True)
-                
-                # Latency Breakdown
-                print(f"METRIC_LATENCY: compute_ms={compute_t:.2f}, fwd_ms={fwd_t:.2f}, bwd_ms={bwd_t:.2f}, comm_ms={comm_t:.2f}, ag_ms={ag_t:.2f}, rs_ms={rs_t:.2f}", flush=True)
-                
-                # Analysis Ratios (The "Insight" Data)
-                print(f"METRIC_RATIOS: comm_tax_pct={comm_tax_pct:.2f}, compute_to_comm={comp_comm_ratio:.2f}, mfu_pct={mfu_pct:.2f}, vol_gb={step_vol_gb:.4f}", flush=True)
-                
-                print(f"METRIC_END {'='*10}\n",flush=True)
-
-
-                print(f"Logging output to {RANK_OUTPUTFILE}")
-                with open(RANK_OUTPUTFILE, "a") as f:
-                    f.write(f"Rank {global_rank} completed step {step} on {deep_speed_engine.device}\n") 
-                                  # --- THE COMPREHENSIVE SCRAPPABLE BLOCK ---
-                    f.write(f"METRIC_START STAGE: {STAGE} | STEP: {step} {'='*25}",)
+                # Try to get DeepSpeed timers (communication breakdown)
+                try:
+                    print("DEBUG: Attempting to get DeepSpeed timers for communication breakdown...")
+                    if hasattr(deep_speed_engine, 'timers'):
+                        timer_names = deep_speed_engine.timers.timer_names if hasattr(deep_speed_engine.timers, 'timer_names') else []
+                        
+                        fwd_t = deep_speed_engine.timers('forward').elapsed(reset=False) * 1000 if 'forward' in timer_names else 0
+                        bwd_t = deep_speed_engine.timers('backward').elapsed(reset=False) * 1000 if 'backward' in timer_names else 0
+                        ag_t = deep_speed_engine.timers('allgather').elapsed(reset=False) * 1000 if 'allgather' in timer_names else 0
+                        rs_t = deep_speed_engine.timers('reduce_scatter').elapsed(reset=False) * 1000 if 'reduce_scatter' in timer_names else 0
+                        step_t = deep_speed_engine.timers('step').elapsed(reset=False) * 1000
+                        
+                        # In Stage 0, DeepSpeed doesn't always split out 'comm' 
+                        # separately from 'backward'. We can estimate it as:
+                        compute_t = fwd_t + bwd_t
+                        comm_t = ag_t + rs_t
+                        comm_t = max(0, step_t - compute_t) 
+                        total_t = compute_t + comm_t
                     
-                    # Progress & Training Health
-                    f.write(f"METRIC_PROGRESS: loss={loss.item():.4f}, lr={safe_lr:.8f}, grad_norm={safe_grad_norm:.4f}")
-                    
-                    # Speed & Hardware
-                    f.write(f"METRIC_SPEED: step_time_ms={step_time:.2f}, throughput_tps={tokens_per_second:.2f}, util_pct={utilization_pct}, flops_t={flops/1e12:.2f} TFLOPS, macs={macs/1e9:.2f} GMACs, params={params/1e6:.2f} M params, temp_c={temp_c}C ")
-                    
-                    # Memory Metrics
-                    f.write(f"METRIC_VRAM: alloc_gb={allocated_Gb:.2f}, peak_gb={peak_vram_Gb:.2f}, reserved_gb={reserved_Gb:.2f}, mem_eff_pct={mem_eff_pct:.2f}")
-                    
-                    # Latency Breakdown
-                    f.write(f"METRIC_LATENCY: compute_ms={compute_t:.2f}, fwd_ms={fwd_t:.2f}, bwd_ms={bwd_t:.2f}, comm_ms={comm_t:.2f}, ag_ms={ag_t:.2f}, rs_ms={rs_t:.2f}")
-                    
-                    # Analysis Ratios (The "Insight" Data)
-                    f.write(f"METRIC_RATIOS: comm_tax_pct={comm_tax_pct:.2f}, compute_to_comm={comp_comm_ratio:.2f}, mfu_pct={mfu_pct:.2f}, vol_gb={step_vol_gb:.4f}")
-                    
-                    f.write(f"METRIC_END {'='*10}\n")
+                        comm_tax_pct = (comm_t / step_t * 100) if step_t > 0 else 0
+                        comp_comm_ratio = (compute_t / comm_t) if comm_t > 0 else 0
+                        
+                        # Reset timers periodically so the moving average stays fresh
+                        if step % 20 == 0:
+                            deep_speed_engine.timers.log(['forward', 'backward', 'step'])
 
+                    else:
+                        fwd_t = bwd_t = ag_t = rs_t = compute_t = comm_t = 0
+                        comm_tax_pct = comp_comm_ratio = 0
+                    print(f"DEBUG: Timers obtained - Forward: {fwd_t:.2f} ms, Backward: {bwd_t:.2f} ms, Allgather: {ag_t:.2f} ms, ReduceScatter: {rs_t:.2f} ms")
+                except Exception as e:
+                    fwd_t = bwd_t = ag_t = rs_t = compute_t = comm_t = 0
+                    comm_tax_pct = comp_comm_ratio = 0
 
-        # Periodic checkpointing. 
-        # This saves the model state, optimizer state, and LR scheduler state in a format that can be resumed by DeepSpeed.
-        if step % CHECKPOINT_FOR_STEP == 0:
-            # We pass 'step' in a dict so we can retrieve it during load
-            deep_speed_engine.save_checkpoint(
-                checkpoint_dir, 
-                tag=f"step_stage{STAGE}_step{step}_checkpoint",
-                client_state={'step': step} 
-            )
+                   # Comprehensive output with all metrics
+                output = (
+                    f"METRIC_START STAGE: {STAGE} | STEP: {step} {'='*25}\n"
+                    f"METRIC_PROGRESS: loss={loss.item():.6f}, lr={lr:.8f}, grad_norm={grad_norm:.6f}\n"
+                    f"METRIC_SPEED: step_time_ms={step_time:.2f}, throughput_tps={tokens_per_second:.2f}, util_pct={util.gpu}, temp_c={temp_c}C\n"
+                    f"METRIC_VRAM: alloc_gb={allocated_Gb:.2f}, peak_gb={peak_vram_Gb:.2f}, reserved_gb={reserved_Gb:.2f}, mem_eff_pct={mem_eff_pct:.2f}\n"
+                    f"METRIC_LATENCY: compute_ms={compute_t:.2f}, fwd_ms={fwd_t:.2f}, bwd_ms={bwd_t:.2f}, comm_ms={comm_t:.2f}, ag_ms={ag_t:.2f}, rs_ms={rs_t:.2f}\n"
+                    f"METRIC_RATIOS: comm_tax_pct={comm_tax_pct:.2f}, compute_to_comm={comp_comm_ratio:.2f}, mfu_pct={mfu_pct:.2f}, vol_gb={step_vol_gb:.4f}\n"
+                    f"METRIC_END {'='*10}\n"
+                )
+                print(output, flush=True)
+                
+                # Save to file
+                os.makedirs(os.path.dirname(OUTPUTFILE), exist_ok=True)
+                with open(OUTPUTFILE, "a") as f:
+                    f.write(output)
+            
+            # # Periodic communication summary (every 10 steps)
+            # if global_rank == 0 and step > 0 and step % REPORT_SUMMARY_STEP == 0:
+            #     try:
+            #         print(f"\n--- Communication Summary at Step {step} ---")
+            #         deepspeed.comm.log_summary()
+            #         print("--- End Communication Summary ---\n")
+            #     except:
+            #         pass
 
-        # if step % 10 == 0:
-        #     # Flush the DeepSpeed monitor to ensure all metrics are written to disk. 
-        #     # This is important for real-time monitoring and for ensuring we have 
-        #     # up-to-date logs for analysis.
-        #     if hasattr(deep_speed_engine, 'monitor') and deep_speed_engine.monitor is not None:
-        #         # Replace the crashing loop with this:
-        #         # print(f"DEBUG:RANK {dist.get_rank()}: Flushing monitor at step {step}")
-        #         deep_speed_engine.monitor.write_events()
-        #     else:
-        #         # print(f"DEBUG:RANK {dist.get_rank()}: Monitor not available to flush at step {step}")
-        #         pass
-
-        
-
-        # Periodic summary logging. 
-        # This will print the communication summary from DeepSpeed's comms logger, 
-        # which includes message sizes and bandwidth.
-        if dist.get_rank() == 0 and step % REPORT_SUMMARY_STEP == 0: 
-            # DeepSpeed internal communication breakdown (All-Reduce vs All-Gather)
-            deepspeed.comm.log_summary()
-        
-           
-    # End total training timer
-    total_training_time = time.perf_counter() - total_start_time
-
-    if dist.get_rank() == 0:
-        total_time = time.time() - total_start_time
+            # Checkpointing
+            if step > 0 and step % CHECKPOINT_FOR_STEP == 0:
+                deep_speed_engine.save_checkpoint(
+                    checkpoint_dir, 
+                    tag=f"stage{STAGE}_step{step}", 
+                    client_state={'step': step}
+                )
+            
+            step += 1
+            micro_step = 0
+            
+            # Progress indicator
+            if global_rank == 0 and step % 10 == 0:
+                print(f"Progress: Weight update {step}/{TOTAL_NUM_WEIGHT_UPDATE_STEPS} completed")
+    
+    # Synchronize all ranks
+    dist.barrier(device_ids=[LOCAL_RANK])
+    
+    # Calculate total training time
+    total_training_time = time.perf_counter() - total_start_time if 'total_start_time' in dir() else 0
+    
+    if global_rank == 0:
         print(f"\n{'#'*20} FINAL STAGE {STAGE} REPORT {'#'*20}")
         print(f"Total Training Time: {total_training_time:.2f} seconds")
-        print(f"Average Throughput: {total_tokens / total_time:.2f} tokens/sec")
+        print(f"Total Tokens Processed: {total_tokens}")
+        print(f"Total Weight Updates: {step}")
         print(f"{'#'*50}")
 
     # Save model
-    if STAGE == 3:
-        # In ZeRO-3, the model parameters are fully partitioned across the nodes, 
-        # so we need to gather them into a single state dict before saving in HuggingFace format.
-        # This gathers the shards into a single FP32 state dict
-        state_dict = deep_speed_engine.save_16bit_model(hf_output_dir)
-        if dist.get_rank() == 0:
-            model.save_pretrained(hf_output_dir, state_dict=state_dict)
-    else:
-        # In ZeRO-0, ZeRO-1, and ZeRO-2, the model parameters are either fully replicated or partially
-        #  partitioned but still accessible on each node, so we can save directly using the DeepSpeed engine's module.
-        if dist.get_rank() == 0:
-            deep_speed_engine.module.save_pretrained(hf_output_dir)
-            print(f"DEBUG:Model saved to {hf_output_dir}")
+    if global_rank == 0:
+        os.makedirs(hf_output_dir, exist_ok=True)
+        deep_speed_engine.module.save_pretrained(hf_output_dir)
+        print(f"DEBUG: Model saved to {hf_output_dir}")
 
-    # Cleanup before next stage
-    # Barrier ensures all ranks finish before teardown.
-    dist.barrier()
+    # Cleanup
     del deep_speed_engine, model
-
-    # Empty CUDA cache and synchronize to ensure all GPU memory is freed before the next stage starts. 
-    # This is important to avoid out-of-memory errors in subsequent stages, especially when using ZeRO-3 which can have higher memory overhead.
+    
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
-        torch.cuda.synchronize()
+        torch.cuda.synchronize(device=LOCAL_RANK)
 
-    print(f"\nZeRO Stage {STAGE} completed. Results saved to {BASE_DIR}. Total Training Time: {total_training_time:.2f} seconds.")
-
-    ## end your edits here  =================
-
-
+    print(f"\nZeRO Stage {STAGE} completed.")
+    print(f"Checkpoint directory: {checkpoint_dir}")
+    
     return checkpoint_dir
+
 
 ###!@3 END ANSWER STEP 3
     
@@ -774,7 +643,6 @@ Evaluate the trained model and multiple checkpoints to track progress and qualit
 
 #######################################
 ###!@4 START ANSWER STEP 4
-
 def _concat_input_ids(test_dataset) -> torch.Tensor:
     """
     Concatenate the 'input_ids' from the test dataset into a single 1-D tensor.
@@ -783,6 +651,7 @@ def _concat_input_ids(test_dataset) -> torch.Tensor:
         test_dataset: A HuggingFace Dataset object that contains a column named 'input_ids', 
                       where each entry is a list or tensor of token IDs.
     """
+    print(f"DEBUG: Concatenating test dataset input_ids...", flush=True)
     rows = test_dataset["input_ids"]
     parts = []
     for row in rows:
@@ -790,8 +659,9 @@ def _concat_input_ids(test_dataset) -> torch.Tensor:
             parts.append(row.reshape(-1).long())
         else:
             parts.append(torch.tensor(row, dtype=torch.long))
-    return torch.cat(parts)       
- 
+    res = torch.cat(parts)
+    print(f"DEBUG: Concatenation complete. Total tokens: {res.size(0)}", flush=True)
+    return res
 
 def _compute_perplexity(
     model: torch.nn.Module,
@@ -815,6 +685,8 @@ def _compute_perplexity(
  
     with torch.no_grad():
         for i in range(0, sequence_length, stride):
+            if i % 5000 == 0: # Print every 5000 tokens to keep logs clean but informative
+                print(f"  > PPL Progress: {i}/{sequence_length} tokens evaluated...", flush=True)
             # For each window, we determine the actual target tokens that will be scored, 
             # which is the last `trg_len` tokens of the window
             begin_location = max(i + stride - max_length, 0)
@@ -829,7 +701,7 @@ def _compute_perplexity(
             chunk = encodings[begin_location:end_location]
 
             # Ensure it's a tensor, then unsqueeze and move to device
-            input_ids = torch.tensor(chunk).unsqueeze(0).to(device)
+            input_ids = chunk.clone().detach().unsqueeze(0).to(device)
 
             # Label preparation: We want to compute the loss only on the last `trg_len` tokens of the window
             target_ids = input_ids.clone()
@@ -858,27 +730,29 @@ def _compute_perplexity(
 
     return float(perplexity)
  
- 
-def _generate_sample(
-    model: GPT2LMHeadModel,
-    tokenizer,
-    prompt: str,
-    max_new_tokens: int = 50,
-    top_k: int = 50,
-    top_p: float = 0.95,
-    do_sample: bool = True,
-) -> str:
-    device = next(model.parameters()).device
-    inputs = tokenizer(prompt, return_tensors="pt").to(device)
+
+def _generate_sample(model, tokenizer, prompt, max_new_tokens=50):
+    # 1. Encode with return_tensors='pt' and ensure it's on the right device
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+    
+    # 2. Check if encoding actually produced tokens
+    if inputs["input_ids"].shape[1] == 0:
+        return "Error: Empty input_ids produced during tokenization."
+
+    # 3. Generate with explicit attention_mask
     with torch.no_grad():
         output_ids = model.generate(
-            **inputs,
+            input_ids=inputs["input_ids"],
+            attention_mask=inputs.get("attention_mask"), # Standard practice
             max_new_tokens=max_new_tokens,
-            do_sample=do_sample,
-            top_k=top_k,
-            top_p=top_p,
-        ) 
-
+            do_sample=True,
+            top_k=50,
+            top_p=0.95,
+            pad_token_id=tokenizer.pad_token_id,
+            eos_token_id=tokenizer.eos_token_id
+        )
+    
+    # 4. Decode the result
     return tokenizer.decode(output_ids[0], skip_special_tokens=True)
 
 def step_4_evaluation(checkpoint_dir):
@@ -928,6 +802,8 @@ def step_4_evaluation(checkpoint_dir):
     MODEL_CONFIG = AutoConfig.from_pretrained(GPT2_CONFIG_DIR)
     tokenizer = AutoTokenizer.from_pretrained(GPT2_CONFIG_DIR)
 
+    print(f"DEBUG: Tokenizer loaded. Special tokens - pad: {tokenizer}")
+
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
  
@@ -943,46 +819,70 @@ def step_4_evaluation(checkpoint_dir):
     local_results: list[dict] = []
  
     for checkpoint_tag in my_checkpoints:
+        # Add a stricter check inside your loop
+        ckpt_path = os.path.join(checkpoint_dir, checkpoint_tag)
+
+        # Ensure it's a real DS checkpoint by looking for a 'latest' file or a .pt file
+        if not any(fname.endswith('.pt') or fname == 'latest' for fname in os.listdir(ckpt_path)):
+            print(f"Skipping {checkpoint_tag}, not a valid DeepSpeed checkpoint.")
+            continue
+
         print(f"[Rank {rank}] Evaluating checkpoint: {checkpoint_tag}")
 
-        # Load the model state dict from the DeepSpeed checkpoint. 
-        # We need to gather the full model state on this rank because DeepSpeed checkpoints 
-        # are sharded across ranks, and for evaluation we need the complete model parameters 
-        # to compute perplexity and generate samples.
-        state_dict = get_fp32_state_dict_from_zero_checkpoint(
-            checkpoint_dir, checkpoint_tag
-        )
+        if STAGE == 0:
+            print(f"DEBUG: Loading checkpoint from {ckpt_path} for evaluation...")
+
+            # --- REPLACE THE DEEPSPEED UTILITY WITH THIS ---
+            model_ckpt_path = os.path.join(ckpt_path, "mp_rank_00_model_states.pt")
+            
+            print(f"DEBUG: Looking for model checkpoint at {model_ckpt_path}...")
+            # Load the checkpoint file
+            # 'map_location' ensures it loads to the current GPU correctly
+            full_ckpt = torch.load(model_ckpt_path, map_location=device)
+            print(f"DEBUG: Checkpoint loaded. Keys in checkpoint: {list(full_ckpt.keys())}")
+            # DeepSpeed saves a dict; the actual weights are under the 'module' key
+            if 'module' in full_ckpt:
+                state_dict = full_ckpt['module']
+            else:
+                state_dict = full_ckpt
+            # -----------------------------------------------
+
+        else:
+
+            # Load the model state dict from the DeepSpeed checkpoint. 
+            # We need to gather the full model state on this rank because DeepSpeed checkpoints 
+            # are sharded across ranks, and for evaluation we need the complete model parameters 
+            # to compute perplexity and generate samples.
+            print(f"DEBUG: Loading full model state dict from DeepSpeed checkpoint for {checkpoint_tag}...")
+            state_dict = get_fp32_state_dict_from_zero_checkpoint(
+                checkpoint_dir, checkpoint_tag
+            )
+            print(f"DEBUG: State dict loaded for {checkpoint_tag}. Keys: {list(state_dict.keys())[:5]}...")
 
         # Initialize the model and load the state dict. 
         # We use the same config for all checkpoints since they are from the same training run.
         model = AutoModelForCausalLM.from_config(MODEL_CONFIG)
         model.load_state_dict(state_dict)
-        model.to(device)
-        model.eval()
+        model.to(device).half().eval()
 
-        # Use half-precision for evaluation to save 50% VRAM
-        model.half()
  
-        # Compute perplexity on the test dataset using the sliding window approach.
+        # Metrics
+        print(f"[Rank {rank}] Running PPL for {checkpoint_tag}...", flush=True)
         perplexity = _compute_perplexity(model, encodings, STRIDE, MAX_LENGTH)
- 
-        # Generate a sample response from the model using a test prompt to qualitatively assess its generation quality.
+        
+        print(f"[Rank {rank}] Generating sample for {checkpoint_tag}...", flush=True)
         generated_response = _generate_sample(model, tokenizer, TEST_PROMPT)
 
-        # Store the results in a structured format for later aggregation. 
-        # Each entry includes the checkpoint tag, computed perplexity, and the generated sample for the test prompt.
         local_results.append({
             "checkpoint": checkpoint_tag,
             "perplexity": perplexity,
-            "sample": {
-                "prompt":   TEST_PROMPT,
-                "response": generated_response,
-            },
+            "sample": {"prompt": TEST_PROMPT, "response": generated_response},
         })
  
         # Free GPU memory before loading the next checkpoint.
         del model, state_dict
         torch.cuda.empty_cache()
+        gc.collect()
 
         # Force Python garbage collection for safety
         gc.collect()
@@ -1015,7 +915,7 @@ def step_4_evaluation(checkpoint_dir):
 
     ## end your edits here  =================
 
-    return 
+    return
 
 ###!@4 END ANSWER STEP 4
     
@@ -1063,7 +963,8 @@ if __name__ == "__main__":
 
 
     dist.destroy_process_group()
-    print(f"DESTROY DONE: {socket.gethostname()} rank {dist.get_rank()}")
+    # print(f"DESTROY DONE: {socket.gethostname()} rank {dist.get_rank()}")
+    print(f"exiting...")
 
     
 # ─────────────────────────────────────────────────────────────────
@@ -1109,4 +1010,4 @@ Example Outputs:
         --reservation=<your_reservation_name> \
         -t <time> \
         /apps/run_wrapper.sh <your_script.py>
-'''
+''' 

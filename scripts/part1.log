@@ -1,0 +1,65 @@
+./run_part1.sh 
+Starting Experiment...
+srun: error: Unable to allocate resources: Invalid qos specification
+Experiment Completed.
+[chethan1@master llm_training]$ chmod +x run_part1.sh
+[chethan1@master llm_training]$ ./run_part1.sh 
+Starting Experiment...
+/mnt/data/miniconda3/envs/chethan1/lib/python3.10/site-packages/torch/cuda/__init__.py:61: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+Using custom data configuration default-593a74a8054407af
+Generating dataset parquet (/home/chethan1/.cache/huggingface/datasets/parquet/default-593a74a8054407af/0.0.0/ec3958b52035e87929642b609b5a781870321434b151a14fbe8fd5a26ff494bb)
+Downloading and preparing dataset parquet/default to /home/chethan1/.cache/huggingface/datasets/parquet/default-593a74a8054407af/0.0.0/ec3958b52035e87929642b609b5a781870321434b151a14fbe8fd5a26ff494bb...
+>>> Starting ML Assignment 2 Pipeline (Part 1)...
+Tokenizing raw dataset from /mnt/data/ds256_2026/as2/train_dataset...
+GPT2Tokenizer(name_or_path='/mnt/data/ds256_2026/as2/gpt2_tokenizer', vocab_size=50257, model_max_length=1024, padding_side='right', truncation_side='right', special_tokens={'bos_token': '<|endoftext|>', 'eos_token': '<|endoftext|>', 'unk_token': '<|endoftext|>'}, added_tokens_decoder={
+	50256: AddedToken("<|endoftext|>", rstrip=False, lstrip=False, single_word=False, normalized=True, special=True),
+})
+Downloading data: 100%|██████████| 103/103 [00:00<00:00, 462541.02files/s]
+Downloading took 0.0 min
+Checksum Computation took 0.0 min
+Generating train split
+Generating train split: 577736 examples [00:43, 13388.23 examples/s] 
+Unable to verify splits sizes.
+Dataset parquet downloaded and prepared to /home/chethan1/.cache/huggingface/datasets/parquet/default-593a74a8054407af/0.0.0/ec3958b52035e87929642b609b5a781870321434b151a14fbe8fd5a26ff494bb. Subsequent calls will reuse this data.
+Process #1 will write at /home/chethan1/.cache/huggingface/datasets/parquet/default-593a74a8054407af/0.0.0/ec3958b52035e87929642b609b5a781870321434b151a14fbe8fd5a26ff494bb/cache-10eab9b23214ecdc_00000_of_00004.arrow
+Process #2 will write at /home/chethan1/.cache/huggingface/datasets/parquet/default-593a74a8054407af/0.0.0/ec3958b52035e87929642b609b5a781870321434b151a14fbe8fd5a26ff494bb/cache-10eab9b23214ecdc_00001_of_00004.arrow
+Process #3 will write at /home/chethan1/.cache/huggingface/datasets/parquet/default-593a74a8054407af/0.0.0/ec3958b52035e87929642b609b5a781870321434b151a14fbe8fd5a26ff494bb/cache-10eab9b23214ecdc_00002_of_00004.arrow
+Process #4 will write at /home/chethan1/.cache/huggingface/datasets/parquet/default-593a74a8054407af/0.0.0/ec3958b52035e87929642b609b5a781870321434b151a14fbe8fd5a26ff494bb/cache-10eab9b23214ecdc_00003_of_00004.arrow
+Running Step 1: Tokenization (num_proc=4):   0%|          | 0/577736 [00:00<?, ? examples/s]Spawning 4 processes
+Token indices sequence length is longer than the specified maximum sequence length for this model (1504 > 1024). Running this sequence through the model will result in indexing errors
+Token indices sequence length is longer than the specified maximum sequence length for this model (1655 > 1024). Running this sequence through the model will result in indexing errors
+Caching processed dataset at /home/chethan1/.cache/huggingface/datasets/parquet/default-593a74a8054407af/0.0.0/ec3958b52035e87929642b609b5a781870321434b151a14fbe8fd5a26ff494bb/cache-10eab9b23214ecdc_00001_of_00004.arrow
+Token indices sequence length is longer than the specified maximum sequence length for this model (1596 > 1024). Running this sequence through the model will result in indexing errors
+Caching processed dataset at /home/chethan1/.cache/huggingface/datasets/parquet/default-593a74a8054407af/0.0.0/ec3958b52035e87929642b609b5a781870321434b151a14fbe8fd5a26ff494bb/cache-10eab9b23214ecdc_00000_of_00004.arrow
+Caching processed dataset at /home/chethan1/.cache/huggingface/datasets/parquet/default-593a74a8054407af/0.0.0/ec3958b52035e87929642b609b5a781870321434b151a14fbe8fd5a26ff494bb/cache-10eab9b23214ecdc_00003_of_00004.arrow
+Token indices sequence length is longer than the specified maximum sequence length for this model (3413 > 1024). Running this sequence through the model will result in indexing errors
+Caching processed dataset at /home/chethan1/.cache/huggingface/datasets/parquet/default-593a74a8054407af/0.0.0/ec3958b52035e87929642b609b5a781870321434b151a14fbe8fd5a26ff494bb/cache-10eab9b23214ecdc_00002_of_00004.arrow
+Running Step 1: Tokenization (num_proc=4): 100%|██████████| 577736/577736 [03:54<00:00, 2460.27 examples/s]
+Concatenating 4 shards
+Saving the dataset (10/10 shards): 100%|██████████| 577736/577736 [01:41<00:00, 5718.41 examples/s] 
+Process #1 will write at /scratch/chethan1/SSDS/llm_training/outputs/train_dataset/tokenized/cache-379ff5dc31e26927_00000_of_00004.arrow
+Process #2 will write at /scratch/chethan1/SSDS/llm_training/outputs/train_dataset/tokenized/cache-379ff5dc31e26927_00001_of_00004.arrow
+Process #3 will write at /scratch/chethan1/SSDS/llm_training/outputs/train_dataset/tokenized/cache-379ff5dc31e26927_00002_of_00004.arrow
+Process #4 will write at /scratch/chethan1/SSDS/llm_training/outputs/train_dataset/tokenized/cache-379ff5dc31e26927_00003_of_00004.arrow
+Tokenization completed in 396.11 seconds.
+Loading tokenized dataset from /scratch/chethan1/SSDS/llm_training/outputs/train_dataset/tokenized...
+STEP 1: Tokenization schema validation passed!
+>>> Starting Step 2: Preprocessing...
+Chunking train dataset...
+Chunking train dataset (num_proc=4):   0%|          | 0/577736 [00:00<?, ? examples/s]Spawning 4 processes
+Caching processed dataset at /scratch/chethan1/SSDS/llm_training/outputs/train_dataset/tokenized/cache-379ff5dc31e26927_00000_of_00004.arrow
+Caching processed dataset at /scratch/chethan1/SSDS/llm_training/outputs/train_dataset/tokenized/cache-379ff5dc31e26927_00001_of_00004.arrow
+Caching processed dataset at /scratch/chethan1/SSDS/llm_training/outputs/train_dataset/tokenized/cache-379ff5dc31e26927_00002_of_00004.arrow
+Caching processed dataset at /scratch/chethan1/SSDS/llm_training/outputs/train_dataset/tokenized/cache-379ff5dc31e26927_00003_of_00004.arrow
+Chunking train dataset (num_proc=4): 100%|██████████| 577736/577736 [01:49<00:00, 5253.79 examples/s] 
+Concatenating 4 shards
+Saving the dataset (10/10 shards): 100%|██████████| 786938/786938 [01:07<00:00, 11684.76 examples/s]
+Processing completed in 177.46  seconds.
+Running DataLoader sanity check...
+Yielded input_ids shape: torch.Size([1, 512])
+STEP 2: Preprocessing (DataLoader sanity check) passed!
+Part 1 Complete! You can now proceed to run the training script.
+Total Execution Time: 575.05s
+Experiment Completed.
+[chethan1@master llm_training]$ 

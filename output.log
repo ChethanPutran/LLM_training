@@ -20,3 +20,6 @@ Yielded input_ids shape: torch.Size([1, 512])
 STEP 2: Preprocessing (DataLoader sanity check) passed!
 Part 1 Complete! You can now proceed to run the training script.
 Total Execution Time: 192.33s
+
+
+srun -N 4 --ntasks=4 --partition=ds256 --reservation=team08_20260410_0000 -t 02:00:00 --output=stage_0_results.log --error=stage_0_results.log /apps/run_wrapper.sh python -u a2p2_v0.1.py 0

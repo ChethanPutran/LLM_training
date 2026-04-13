@@ -182,7 +182,9 @@ def tokenize_dec(tokenizer):
         )
         
         #  Return only the input_ids 
-        return {"input_ids": tokenized["input_ids"]}
+        return {"input_ids": tokenized["input_ids"],
+                "labels": tokenized["input_ids"]}  # For language modeling, labels are the same as input_ids
+                
 
     return tokenize
 

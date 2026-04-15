@@ -1,0 +1,141 @@
+METRIC_START STAGE: 0 | STEP: 0 =========================
+METRIC_PROGRESS: loss=10.985068, lr=0.00000100, grad_norm=0.000000
+METRIC_SPEED: step_time_ms=1.12, throughput_tps=58769511.87, util_pct=18, temp_c=39C
+METRIC_VRAM: alloc_gb=1.01, peak_gb=3.62, reserved_gb=2.93, mem_eff_pct=27.81
+METRIC_LATENCY: compute_ms=0.00, fwd_ms=0.00, bwd_ms=0.00, comm_ms=0.00, ag_ms=0.00, rs_ms=0.00
+METRIC_RATIOS: comm_tax_pct=0.00, compute_to_comm=0.00, mfu_pct=6.45, vol_gb=0.1908
+METRIC_END ==========
+METRIC_START STAGE: 0 | STEP: 5 =========================
+METRIC_PROGRESS: loss=10.942948, lr=0.00000100, grad_norm=0.000000
+METRIC_SPEED: step_time_ms=2.28, throughput_tps=28738213.35, util_pct=97, temp_c=43C
+METRIC_VRAM: alloc_gb=1.01, peak_gb=3.62, reserved_gb=2.93, mem_eff_pct=27.82
+METRIC_LATENCY: compute_ms=0.00, fwd_ms=0.00, bwd_ms=0.00, comm_ms=0.00, ag_ms=0.00, rs_ms=0.00
+METRIC_RATIOS: comm_tax_pct=0.00, compute_to_comm=0.00, mfu_pct=6.45, vol_gb=0.1908
+METRIC_END ==========
+METRIC_START STAGE: 0 | STEP: 10 =========================
+METRIC_PROGRESS: loss=10.939772, lr=0.00000100, grad_norm=0.000040
+METRIC_SPEED: step_time_ms=1.51, throughput_tps=43452431.17, util_pct=98, temp_c=45C
+METRIC_VRAM: alloc_gb=1.01, peak_gb=3.62, reserved_gb=2.93, mem_eff_pct=27.80
+METRIC_LATENCY: compute_ms=0.00, fwd_ms=0.00, bwd_ms=0.00, comm_ms=0.00, ag_ms=0.00, rs_ms=0.00
+METRIC_RATIOS: comm_tax_pct=0.00, compute_to_comm=0.00, mfu_pct=6.45, vol_gb=0.1908
+METRIC_END ==========
+METRIC_START STAGE: 0 | STEP: 15 =========================
+METRIC_PROGRESS: loss=10.977413, lr=0.00001575, grad_norm=0.000041
+METRIC_SPEED: step_time_ms=14.27, throughput_tps=4591104.74, util_pct=100, temp_c=42C
+METRIC_VRAM: alloc_gb=0.91, peak_gb=3.64, reserved_gb=2.93, mem_eff_pct=24.95
+METRIC_LATENCY: compute_ms=0.00, fwd_ms=0.00, bwd_ms=0.00, comm_ms=0.00, ag_ms=0.00, rs_ms=0.00
+METRIC_RATIOS: comm_tax_pct=0.00, compute_to_comm=0.00, mfu_pct=6.45, vol_gb=0.1908
+METRIC_END ==========
+METRIC_START STAGE: 0 | STEP: 20 =========================
+METRIC_PROGRESS: loss=10.962772, lr=0.00001575, grad_norm=0.000041
+METRIC_SPEED: step_time_ms=2.06, throughput_tps=31853176.11, util_pct=98, temp_c=49C
+METRIC_VRAM: alloc_gb=1.01, peak_gb=3.64, reserved_gb=2.93, mem_eff_pct=27.64
+METRIC_LATENCY: compute_ms=0.00, fwd_ms=0.00, bwd_ms=0.00, comm_ms=0.00, ag_ms=0.00, rs_ms=0.00
+METRIC_RATIOS: comm_tax_pct=0.00, compute_to_comm=0.00, mfu_pct=6.45, vol_gb=0.1908
+METRIC_END ==========
+METRIC_START STAGE: 0 | STEP: 25 =========================
+METRIC_PROGRESS: loss=10.930270, lr=0.00002438, grad_norm=0.000040
+METRIC_SPEED: step_time_ms=1.26, throughput_tps=52157080.56, util_pct=97, temp_c=50C
+METRIC_VRAM: alloc_gb=1.01, peak_gb=3.64, reserved_gb=2.93, mem_eff_pct=27.65
+METRIC_LATENCY: compute_ms=0.00, fwd_ms=0.00, bwd_ms=0.00, comm_ms=0.00, ag_ms=0.00, rs_ms=0.00
+METRIC_RATIOS: comm_tax_pct=0.00, compute_to_comm=0.00, mfu_pct=6.45, vol_gb=0.1908
+METRIC_END ==========
+METRIC_START STAGE: 0 | STEP: 30 =========================
+METRIC_PROGRESS: loss=10.941910, lr=0.00002438, grad_norm=0.000040
+METRIC_SPEED: step_time_ms=2.55, throughput_tps=25692170.07, util_pct=96, temp_c=52C
+METRIC_VRAM: alloc_gb=1.01, peak_gb=3.64, reserved_gb=2.93, mem_eff_pct=27.65
+METRIC_LATENCY: compute_ms=0.00, fwd_ms=0.00, bwd_ms=0.00, comm_ms=0.00, ag_ms=0.00, rs_ms=0.00
+METRIC_RATIOS: comm_tax_pct=0.00, compute_to_comm=0.00, mfu_pct=6.45, vol_gb=0.1908
+METRIC_END ==========
+METRIC_START STAGE: 0 | STEP: 35 =========================
+METRIC_PROGRESS: loss=10.822803, lr=0.00003050, grad_norm=0.000039
+METRIC_SPEED: step_time_ms=1.77, throughput_tps=37015615.74, util_pct=97, temp_c=54C
+METRIC_VRAM: alloc_gb=1.01, peak_gb=3.64, reserved_gb=2.93, mem_eff_pct=27.66
+METRIC_LATENCY: compute_ms=0.00, fwd_ms=0.00, bwd_ms=0.00, comm_ms=0.00, ag_ms=0.00, rs_ms=0.00
+METRIC_RATIOS: comm_tax_pct=0.00, compute_to_comm=0.00, mfu_pct=6.45, vol_gb=0.1908
+METRIC_END ==========
+METRIC_START STAGE: 0 | STEP: 40 =========================
+METRIC_PROGRESS: loss=10.674788, lr=0.00003525, grad_norm=0.000038
+METRIC_SPEED: step_time_ms=1.00, throughput_tps=65249941.59, util_pct=93, temp_c=54C
+METRIC_VRAM: alloc_gb=1.01, peak_gb=3.64, reserved_gb=2.93, mem_eff_pct=27.65
+METRIC_LATENCY: compute_ms=0.00, fwd_ms=0.00, bwd_ms=0.00, comm_ms=0.00, ag_ms=0.00, rs_ms=0.00
+METRIC_RATIOS: comm_tax_pct=0.00, compute_to_comm=0.00, mfu_pct=6.45, vol_gb=0.1908
+METRIC_END ==========
+METRIC_START STAGE: 0 | STEP: 45 =========================
+METRIC_PROGRESS: loss=10.809436, lr=0.00003525, grad_norm=0.000038
+METRIC_SPEED: step_time_ms=2.30, throughput_tps=28520497.96, util_pct=96, temp_c=56C
+METRIC_VRAM: alloc_gb=1.01, peak_gb=3.64, reserved_gb=2.93, mem_eff_pct=27.65
+METRIC_LATENCY: compute_ms=0.00, fwd_ms=0.00, bwd_ms=0.00, comm_ms=0.00, ag_ms=0.00, rs_ms=0.00
+METRIC_RATIOS: comm_tax_pct=0.00, compute_to_comm=0.00, mfu_pct=6.45, vol_gb=0.1908
+METRIC_END ==========
+METRIC_START STAGE: 0 | STEP: 50 =========================
+METRIC_PROGRESS: loss=10.693316, lr=0.00003913, grad_norm=0.000036
+METRIC_SPEED: step_time_ms=1.52, throughput_tps=43118512.25, util_pct=97, temp_c=57C
+METRIC_VRAM: alloc_gb=1.01, peak_gb=3.64, reserved_gb=2.93, mem_eff_pct=27.66
+METRIC_LATENCY: compute_ms=0.00, fwd_ms=0.00, bwd_ms=0.00, comm_ms=0.00, ag_ms=0.00, rs_ms=0.00
+METRIC_RATIOS: comm_tax_pct=0.00, compute_to_comm=0.00, mfu_pct=6.45, vol_gb=0.1908
+METRIC_END ==========
+METRIC_START STAGE: 0 | STEP: 55 =========================
+METRIC_PROGRESS: loss=10.678209, lr=0.00004241, grad_norm=0.000034
+METRIC_SPEED: step_time_ms=14.52, throughput_tps=4513717.57, util_pct=100, temp_c=52C
+METRIC_VRAM: alloc_gb=0.91, peak_gb=3.64, reserved_gb=2.93, mem_eff_pct=24.95
+METRIC_LATENCY: compute_ms=0.00, fwd_ms=0.00, bwd_ms=0.00, comm_ms=0.00, ag_ms=0.00, rs_ms=0.00
+METRIC_RATIOS: comm_tax_pct=0.00, compute_to_comm=0.00, mfu_pct=6.45, vol_gb=0.1908
+METRIC_END ==========
+METRIC_START STAGE: 0 | STEP: 60 =========================
+METRIC_PROGRESS: loss=10.682423, lr=0.00004241, grad_norm=0.000034
+METRIC_SPEED: step_time_ms=2.05, throughput_tps=31984006.36, util_pct=96, temp_c=59C
+METRIC_VRAM: alloc_gb=1.01, peak_gb=3.64, reserved_gb=2.93, mem_eff_pct=27.66
+METRIC_LATENCY: compute_ms=0.00, fwd_ms=0.00, bwd_ms=0.00, comm_ms=0.00, ag_ms=0.00, rs_ms=0.00
+METRIC_RATIOS: comm_tax_pct=0.00, compute_to_comm=0.00, mfu_pct=6.45, vol_gb=0.1908
+METRIC_END ==========
+METRIC_START STAGE: 0 | STEP: 65 =========================
+METRIC_PROGRESS: loss=10.620535, lr=0.00004525, grad_norm=0.000032
+METRIC_SPEED: step_time_ms=1.26, throughput_tps=52033842.88, util_pct=97, temp_c=58C
+METRIC_VRAM: alloc_gb=1.01, peak_gb=3.64, reserved_gb=2.93, mem_eff_pct=27.63
+METRIC_LATENCY: compute_ms=0.00, fwd_ms=0.00, bwd_ms=0.00, comm_ms=0.00, ag_ms=0.00, rs_ms=0.00
+METRIC_RATIOS: comm_tax_pct=0.00, compute_to_comm=0.00, mfu_pct=6.45, vol_gb=0.1908
+METRIC_END ==========
+METRIC_START STAGE: 0 | STEP: 70 =========================
+METRIC_PROGRESS: loss=10.572019, lr=0.00004525, grad_norm=0.000032
+METRIC_SPEED: step_time_ms=2.56, throughput_tps=25621137.13, util_pct=96, temp_c=60C
+METRIC_VRAM: alloc_gb=1.01, peak_gb=3.64, reserved_gb=2.93, mem_eff_pct=27.65
+METRIC_LATENCY: compute_ms=0.00, fwd_ms=0.00, bwd_ms=0.00, comm_ms=0.00, ag_ms=0.00, rs_ms=0.00
+METRIC_RATIOS: comm_tax_pct=0.00, compute_to_comm=0.00, mfu_pct=6.45, vol_gb=0.1908
+METRIC_END ==========
+METRIC_START STAGE: 0 | STEP: 75 =========================
+METRIC_PROGRESS: loss=10.504622, lr=0.00004776, grad_norm=0.000032
+METRIC_SPEED: step_time_ms=1.76, throughput_tps=37144516.14, util_pct=97, temp_c=60C
+METRIC_VRAM: alloc_gb=1.01, peak_gb=3.64, reserved_gb=2.93, mem_eff_pct=27.66
+METRIC_LATENCY: compute_ms=0.00, fwd_ms=0.00, bwd_ms=0.00, comm_ms=0.00, ag_ms=0.00, rs_ms=0.00
+METRIC_RATIOS: comm_tax_pct=0.00, compute_to_comm=0.00, mfu_pct=6.45, vol_gb=0.1908
+METRIC_END ==========
+METRIC_START STAGE: 0 | STEP: 80 =========================
+METRIC_PROGRESS: loss=10.443152, lr=0.00005000, grad_norm=0.000032
+METRIC_SPEED: step_time_ms=16.61, throughput_tps=3945016.25, util_pct=77, temp_c=60C
+METRIC_VRAM: alloc_gb=1.01, peak_gb=3.64, reserved_gb=2.93, mem_eff_pct=27.64
+METRIC_LATENCY: compute_ms=0.00, fwd_ms=0.00, bwd_ms=0.00, comm_ms=0.00, ag_ms=0.00, rs_ms=0.00
+METRIC_RATIOS: comm_tax_pct=0.00, compute_to_comm=0.00, mfu_pct=6.45, vol_gb=0.1908
+METRIC_END ==========
+METRIC_START STAGE: 0 | STEP: 85 =========================
+METRIC_PROGRESS: loss=10.430105, lr=0.00005000, grad_norm=0.000032
+METRIC_SPEED: step_time_ms=17.45, throughput_tps=3754987.02, util_pct=67, temp_c=60C
+METRIC_VRAM: alloc_gb=1.01, peak_gb=3.64, reserved_gb=2.93, mem_eff_pct=27.64
+METRIC_LATENCY: compute_ms=0.00, fwd_ms=0.00, bwd_ms=0.00, comm_ms=0.00, ag_ms=0.00, rs_ms=0.00
+METRIC_RATIOS: comm_tax_pct=0.00, compute_to_comm=0.00, mfu_pct=6.45, vol_gb=0.1908
+METRIC_END ==========
+METRIC_START STAGE: 0 | STEP: 90 =========================
+METRIC_PROGRESS: loss=10.415361, lr=0.00005000, grad_norm=0.000031
+METRIC_SPEED: step_time_ms=1.52, throughput_tps=43155765.34, util_pct=93, temp_c=62C
+METRIC_VRAM: alloc_gb=1.01, peak_gb=3.64, reserved_gb=2.93, mem_eff_pct=27.64
+METRIC_LATENCY: compute_ms=0.00, fwd_ms=0.00, bwd_ms=0.00, comm_ms=0.00, ag_ms=0.00, rs_ms=0.00
+METRIC_RATIOS: comm_tax_pct=0.00, compute_to_comm=0.00, mfu_pct=6.45, vol_gb=0.1908
+METRIC_END ==========
+METRIC_START STAGE: 0 | STEP: 95 =========================
+METRIC_PROGRESS: loss=10.300667, lr=0.00004946, grad_norm=0.000030
+METRIC_SPEED: step_time_ms=14.62, throughput_tps=4483990.77, util_pct=100, temp_c=57C
+METRIC_VRAM: alloc_gb=0.91, peak_gb=3.64, reserved_gb=2.93, mem_eff_pct=24.96
+METRIC_LATENCY: compute_ms=0.00, fwd_ms=0.00, bwd_ms=0.00, comm_ms=0.00, ag_ms=0.00, rs_ms=0.00
+METRIC_RATIOS: comm_tax_pct=0.00, compute_to_comm=0.00, mfu_pct=6.45, vol_gb=0.1908
+METRIC_END ==========
+

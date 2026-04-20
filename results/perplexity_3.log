@@ -1,0 +1,16 @@
+Checkpoint: global_step128 | PPL: 18224.6616
+Checkpoint: global_step160 | PPL: 13559.9554
+Checkpoint: global_step192 | PPL: 10093.9645
+Checkpoint: global_step224 | PPL: 7668.6192
+Checkpoint: global_step256 | PPL: 5970.9596
+Checkpoint: global_step288 | PPL: 4774.5411
+Checkpoint: global_step32 | PPL: 27376.4475
+Checkpoint: global_step320 | PPL: 3919.1489
+Checkpoint: global_step64 | PPL: 17757.0768
+Checkpoint: global_step96 | PPL: 24062.0641
+Checkpoint: global_step320 | PPL: 3919.1489
+Checkpoint: global_step352 | PPL: 3284.4158
+Checkpoint: global_step384 | PPL: 2820.0074
+Checkpoint: global_step416 | PPL: 2460.941
+Checkpoint: global_step448 | PPL: 2203.0639
+Checkpoint: global_step480 | PPL: 1999.1128

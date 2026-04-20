@@ -1,0 +1,138 @@
+[
+    {
+        "checkpoint": "global_step100",
+        "perplexity": 14962.9813,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time, the\n\n\"\n the,\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        }
+    },
+    {
+        "checkpoint": "global_step128",
+        "perplexity": 18616.5189,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time, the\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        }
+    },
+    {
+        "checkpoint": "global_step160",
+        "perplexity": 14394.2007,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time, the no the\"\n the,.ize andist,,,,, common,.\n the, purchase the her,,..,, Man,,,\n research,. the, Man. Man. of,\n used"
+        }
+    },
+    {
+        "checkpoint": "global_step192",
+        "perplexity": 10985.9279,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time, the no the\"\n the,.\n andist in, the,,\n,\n\n the prevent\n start her\n,.\n\n\n\n,\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        }
+    },
+    {
+        "checkpoint": "global_step224",
+        "perplexity": 8490.0397,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time,,,, the,.,,.,..., a., the the, or,, the the different, in the the the,., and the,.\ufffd,. support, the,, the the."
+        }
+    },
+    {
+        "checkpoint": "global_step256",
+        "perplexity": 6680.5028,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time,,,,,,.,,.,..., a.,,,,.,,, the., in the the the,., and the,.\ufffd a. support,,,, the,."
+        }
+    },
+    {
+        "checkpoint": "global_step288",
+        "perplexity": 5374.0062,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time,,,,,,.,,.,..., a.,,,, or,,, the., in in the the,., and the,.\ufffd a.\n,,,,,,."
+        }
+    },
+    {
+        "checkpoint": "global_step32",
+        "perplexity": 27306.4301,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time PlayIDER witches Volks Lynch psychSouth likingSa.684. Death Han bread psychSa adaptation:\" the tomorrow representatives Shepherd, theoding Death adaptationoding Ir the hittersAAA\n\u00e7a+++repre\n\n Ir\n.\n\nitaire\n,\n\n\n"
+        }
+    },
+    {
+        "checkpoint": "global_step320",
+        "perplexity": 4497.8686,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time. and2.,,.-,, such,,,,), the the and not the the.\n If2.\n, of,,, the.\n her.\n.\n.\n,, and.\n, the"
+        }
+    },
+    {
+        "checkpoint": "global_step64",
+        "perplexity": 18981.9936,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time LOGonica,.,,. Han\n\n\n,,.\n medal\nSoding, theSa Lynch\n\n,.,, of\n\n\n\n. :\n\nvertottonoding\n\n,\n\n. Lynch, the"
+        }
+    },
+    {
+        "checkpoint": "global_step96",
+        "perplexity": 14962.9813,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time. and2.,,.,,\n\n,,.\n\n\n theoding industries the her.\n\n2.,, of\n\n\n\n. : her\nvert\n\n\n\n\n\n\n\n\n, the"
+        }
+    },
+     {
+        "checkpoint": "global_step320",
+        "perplexity": 4497.8686,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time a,., a. to an the,./., the, to her such..\n offer to an.\n.\n a,, such\n inC\n, the her the, the of as,.\n\n the"
+        }
+    },
+    {
+        "checkpoint": "global_step352",
+        "perplexity": 3780.1067,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time a,., a. to an the,./., the, to her such..\n of to an.\n.\n a,, such\n inC\n, the her the, the to as,.\n-\n"
+        }
+    },
+    {
+        "checkpoint": "global_step384",
+        "perplexity": 3273.8464,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time a,., a. to an the,./., the, to the such..\n of to an.\n.\n a,, such\n inC,, the and the, the to as,.\n the the"
+        }
+    },
+    {
+        "checkpoint": "global_step416",
+        "perplexity": 2913.739,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time a,., a, to an the \ufffd./., the, to the such..\n- to an.,.\n a,, \ufffd\n-C,, the and the, the to as over.\n- the"
+        }
+    },
+    {
+        "checkpoint": "global_step448",
+        "perplexity": 2649.1465,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time a and of.\n-\n,, that\u2019.\n-\n-\n the,\n the, are a, to\n-\n-\n,, the,\n-\n-\n |\n-\n-\n-\n-"
+        }
+    },
+    {
+        "checkpoint": "global_step480",
+        "perplexity": 2439.9859,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time a and of., and as,, a\u2019. with.\n\u2019 the the the the, are a, to a and,ing.,, the to, the of,, which,./ you \ufffd a in it"
+        }
+    }
+]

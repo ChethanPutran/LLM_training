@@ -53,18 +53,15 @@ import math
 # ──────────────────────────────────────────────────────
 # START: OTHER IMPORT STATEMENTS (ALLOWED TO MODIFY)
 # ──────────────────────────────────────────────────────
-import sys
 import gc
-from typing import Union
-from transformers import GPT2LMHeadModel
 import pynvml  # For hardware-level VRAM
-from datasets import DatasetDict, load_from_disk, Dataset as HFDataset
-from transformers import AutoConfig, AutoTokenizer, AutoModelForCausalLM, DataCollator
+from datasets import load_from_disk
+from transformers import AutoConfig, AutoTokenizer, AutoModelForCausalLM
 from deepspeed.utils.zero_to_fp32 import get_fp32_state_dict_from_zero_checkpoint
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-from deepspeed.profiling.flops_profiler.profiler import FlopsProfiler
 import argparse
+import tqdm
 # Add your import statements here
 
 # ──────────────────────────────────────────────────────
@@ -96,12 +93,22 @@ GPT2_CONFIG_DIR = os.path.join(shared_dir, "model_config")
 parser = argparse.ArgumentParser()
 parser.add_argument("--stage", type=int)
 parser.add_argument("--outputfile", type=str)
+parser.add_argument("--check_point_tag", type=str, default=None)
 args = parser.parse_args()
 
 STAGE = args.stage
 OUTPUTFILE = args.outputfile
+CHECKPOINT_TAG = args.check_point_tag
 
 
+OUTPUTS = [
+    f"/scratch/chethan1/SSDS/llm_training/outputs/stage_0/checkpoints/",
+    f"/scratch/chethan1/SSDS/llm_training/outputs/stage_1/checkpoints/",
+    f"/scratch/chethan1/SSDS/llm_training/outputs/stage_2/checkpoints/",
+    f"/scratch/chethan1/SSDS/llm_training/outputs/stage_3/checkpoints/",
+]
+
+DS_CONFIG_PATH = f"/scratch/chethan1/SSDS/llm_training/outputs/stage_{STAGE}/ds_config.json"
 BASE_DIR = os.path.abspath(f"/scratch/chethan1/SSDS/llm_training/outputs/stage_{STAGE}")
 DATA_DIR = os.path.abspath(f"/scratch/chethan1/SSDS/llm_training/outputs/")
 SCRATCH_DIR =  os.path.abspath("/scratch/chethan1/SSDS/llm_training/results")
@@ -213,91 +220,124 @@ Your report MUST include:
 
 # DeepSpeed config builder
 
-def build_deepspeed_config(stage: int, micro_batch_size: int, gradient_accumulation: int, total_num_steps: int) -> dict:
-    """
-    Build a DeepSpeed configuration dictionary based on the specified ZeRO stage and training parameters.
-    """
-    
-    # Hyper parameters are from standard GPT-2 training configs
+def build_deepspeed_config(
+    stage: int,
+    micro_batch_size: int,
+    gradient_accumulation: int,
+    total_num_steps: int,
+    world_size: int,
+    scratch_dir: str
+) -> dict:
     ds_config = {
+        # =========================
+        # BATCHING (CRITICAL)
+        # =========================
         "train_micro_batch_size_per_gpu": micro_batch_size,
         "gradient_accumulation_steps": gradient_accumulation,
+
+        # =========================
+        # OPTIMIZER (GPT-style)
+        # =========================
         "optimizer": {
             "type": "AdamW",
             "params": {
-                "lr": 5e-5,
+                "lr": 1.5e-5,
                 "betas": [0.9, 0.95],
                 "eps": 1e-8,
                 "weight_decay": 0.1,
             },
         },
+
+        # =========================
+        # LR SCHEDULER (IMPORTANT)
+        # =========================
         "scheduler": {
             "type": "WarmupDecayLR",
             "params": {
-                "warmup_min_lr": 1e-6,
-                "warmup_max_lr": 5e-5,
-                "warmup_num_steps": 10,  # 10% of your 100 update steps
-                "total_num_steps": total_num_steps, 
+                "warmup_min_lr": 1e-7,
+                "warmup_max_lr": 1.5e-5,
+                "warmup_num_steps": int(0.01 * total_num_steps),  # 1% warmup
+                "total_num_steps": total_num_steps,
             },
         },
+
+        # =========================
+        # NUMERICS
+        # =========================
+        "fp16": {
+            "enabled": True,
+            "loss_scale": 0,
+            "initial_scale_power": 12,
+        },
+
         "gradient_clipping": 1.0,
-        "fp16": {"enabled": True, "loss_scale": 0},
+        # =========================
+        # LOGGING (VERY IMPORTANT)
+        # =========================
         "steps_per_print": 1,
-        
-        # This will log the time taken for each step, including a breakdown of forward,
-        # backward, and step times.
         "wall_clock_breakdown": True,
-        
-        # This will profile the FLOPs at the specified step
-        "flops_profiler": {
-            "enabled": True,
-            "output_file": f"{SCRATCH_DIR}/reflops_profile_{stage}.txt",
-            "profile_step": 1,
-            "module_depth": 0,
-            "detailed": True,
-            "top_modules": 1,
-        },
-        # This will log the communication patterns
-        "comms_logger": { 
-            "enabled": True,
-            "verbose": False,
-            "prof_all": True
-        },
-        
-        # Visual report
         "monitor": {
             "enabled": True,
-            "tag": "gpt2_zero_analysis",
-            "tensorboard": { 
+            "tag": f"zero_stage_{stage}",
+            "tensorboard": {
                 "enabled": True,
-                "output_path": f"{SCRATCH_DIR}/tensorboard_logs",
-                "job_name": f"gpt2_zero_stage_{stage}"
+                "output_path": f"{scratch_dir}/tensorboard",
+                "job_name": f"zero_stage_{stage}"
             },
-            "csv_monitor": { 
+            "csv_monitor": {
                 "enabled": True,
-                "output_file": f"{SCRATCH_DIR}/metrics_stage_{stage}.csv"
+                "output_file": f"{scratch_dir}/outputs/stage_{stage}/csv_logs_stage_{stage}.csv",
+                "job_name": f"zero_stage_{stage}"
             }
         },
-        
-        # Timers for detailed breakdown
-        "timers": { 
+
+        # =========================
+        # PROFILING
+        # =========================
+        "flops_profiler": {
+            "enabled": True,
+            "profile_step": 20,
+            "module_depth": -1,
+            "top_modules": 3,
+            "detailed": True,
+            "output_file": f"{scratch_dir}/outputs/stage_{stage}/flops_stage_{stage}_{str(time.time())}.txt"
+        },
+
+        "comms_logger": {
+            "enabled": True,
+            "prof_all": True,
+            "verbose": False,
+        },
+
+        "timers": {
             "enabled": True
         },
     }
-    
-    # Add ZeRO optimization if stage > 0
+
+    # =========================
+    # ZeRO OPTIMIZATION
+    # =========================
     if stage > 0:
         ds_config["zero_optimization"] = {
             "stage": stage,
-            "allgather_partitions": stage >= 2,
-            "allgather_bucket_size": 5e8 if stage >= 2 else 0,
-            "overlap_comm": stage >= 2,
-            "reduce_scatter": stage >= 2,
-            "reduce_bucket_size": 5e8 if stage >= 2 else 0,
-            "contiguous_gradients": stage >= 2,
-            "round_robin_gradients": stage == 3,
+            "contiguous_gradients": True,
+            "overlap_comm": True,
+            "reduce_scatter": True,
+            "reduce_bucket_size": int(2e8),
+            "allgather_bucket_size": int(2e8),
         }
-    
+
+    if stage >= 2:
+        ds_config["zero_optimization"]["allgather_partitions"] = True
+
+    if stage == 3:
+        ds_config["zero_optimization"].update({
+            "sub_group_size": int(1e9),
+            "stage3_prefetch_bucket_size": int(5e8),
+            "stage3_param_persistence_threshold": int(1e5),
+            # add offload_optimizer / offload_param here only when experimenting with CPU offload
+        })
+
     return ds_config
 
 
@@ -310,65 +350,88 @@ def step_3_training():
     now_dt = datetime.datetime.now()
     date_str = now_dt.strftime("%Y-%m-%d")
     time_str = now_dt.strftime("%H-%M-%S")
-    checkpoint_dir = os.path.join(BASE_DIR, "checkpoints", date_str, time_str)
-    hf_output_dir  = os.path.join(BASE_DIR, "gpt2_trained", date_str, time_str)
-    checkpoint_dir = os.path.join(BASE_DIR, "checkpoints", date_str, time_str)
+    # checkpoint_dir = os.path.join(BASE_DIR, "checkpoints", date_str, time_str)
+
+    checkpoint_dir = os.path.join(BASE_DIR, "checkpoints")
+    hf_output_dir  = os.path.join(BASE_DIR, "gpt2_trained")
 
     # date_str = "2026-04-14"
     # time_str = "02-17-44"
 
-    # return "/scratch/chethan1/SSDS/llm_training/outputs/stage_0/checkpoints/2026-04-14/02-17-44"
+    # return "/scratch/chethan1/SSDS/llm_training/outputs/stage_0/checkpoints/2026-04-16/01-15-28/"
     # if STAGE == 3:
     #     return os.path.join(BASE_DIR, date_str, time_str)
     # return os.path.join(BASE_DIR, "gpt2_trained", date_str, time_str)
-    print(f"\n{'='*80}")
-    print(f"Training ZeRO Stage {STAGE}")
-    print(f"{'='*80}")
-    
-    global_rank = dist.get_rank()
+    print(f"DEBUG: \n{'='*80}")
+    print(f"DEBUG: Training ZeRO Stage {STAGE}")
+    print(f"DEBUG: {'='*80}")
+
+    # =========================
+    # ENV + DEVICE SETUP
+    # =========================
+
+    # Initialize distributed FIRST
+    if not dist.is_initialized():
+        deepspeed.init_distributed(dist_backend="nccl")
+
+
     LOCAL_RANK = int(os.environ["LOCAL_RANK"])
-    torch.cuda.set_device(LOCAL_RANK)
-    WORLD_SIZE = dist.get_world_size()
-
-    # # Initialize distributed training with proper device mapping
-    # LOCAL_RANK = int(os.environ.get("LOCAL_RANK", 0))
-    # WORLD_SIZE = int(os.environ.get("WORLD_SIZE", 1))
-    # global_rank = int(os.environ.get("RANK", 0))
-
-    
-    # Training parameters
-    TOTAL_NUM_WEIGHT_UPDATE_STEPS = 100 
-    GRADIENT_ACCUMULATION = 8
-    MICRO_BATCH_SIZE = 4
-    CHECKPOINT_FOR_STEP = 10
-    WARMUP_STEPS = 0
-    REPORT_SUMMARY_STEP = 10
-    PROFILE_PER_STEP = 5
-    PRINT_PROFILE = False
-    
-    
-    # Initialize DeepSpeed distributed backend with device ID
-    deepspeed.init_distributed(dist_backend="nccl")
-
-    # Re-get ranks after initialization
+    GLOBAL_RANK = os.environ.get("RANK")
     global_rank = dist.get_rank()
     WORLD_SIZE = dist.get_world_size()
+    torch.cuda.set_device(LOCAL_RANK)
+    print(
+        f"DEBUG: RANK={GLOBAL_RANK}"
+        f"DEBUG: LOCAL_RANK={os.environ.get('LOCAL_RANK')}, "
+        f"DEBUG: WORLD_SIZE={os.environ.get('WORLD_SIZE')}",
+        flush=True
+    )
+    # Now safe to query
     
-    print(f"World Size: {WORLD_SIZE}, Local Rank: {LOCAL_RANK}")
 
-    # Initialize NVML
+    print(f"DEBUG: World Size: {WORLD_SIZE}, Local Rank: {LOCAL_RANK}")
+
+    # =========================
+    # TRAINING PARAMS
+    # =========================
+    TOTAL_NUM_STEPS = 1120
+    GRADIENT_ACCUMULATION = 8
+    MICRO_BATCH_SIZE = 16
+    CHECKPOINT_FOR_STEP = 64
+    PROFILE_PER_STEP = 4
+    NUM_WORKERS = 2
+
+    metrics_log = []
+
+    # =========================
+    # NVML INIT
+    # =========================
     pynvml.nvmlInit()
     handle = pynvml.nvmlDeviceGetHandleByIndex(torch.cuda.current_device())
 
-    print("Generating DeepSpeed configuration...")
-    ds_config = build_deepspeed_config(STAGE, MICRO_BATCH_SIZE, GRADIENT_ACCUMULATION, TOTAL_NUM_WEIGHT_UPDATE_STEPS)
-    
-    print("DEBUG: Loading dataset and creating DataLoader...")
+    # =========================
+    # CONFIG (FIXED)
+    # =========================
+    print("DEBUG: Generating DeepSpeed configuration...")
+
+    ds_config = build_deepspeed_config(
+        stage=STAGE,
+        micro_batch_size=MICRO_BATCH_SIZE,
+        gradient_accumulation=GRADIENT_ACCUMULATION,
+        total_num_steps=TOTAL_NUM_STEPS,
+        world_size=WORLD_SIZE,
+        scratch_dir=SCRATCH_DIR
+    )
+
+    # =========================
+    # DATASET
+    # =========================
+    print("DEBUG: Loading dataset...")
     raw_dataset = load_from_disk(final_train_dataset)
     dataset = raw_dataset.with_format("torch")
 
     sampler = DistributedSampler(
-        dataset, 
+        dataset,
         num_replicas=WORLD_SIZE,
         rank=global_rank,
         shuffle=True,
@@ -378,48 +441,91 @@ def step_3_training():
     train_dataloader = DataLoader(
         dataset,
         batch_size=MICRO_BATCH_SIZE,
-        sampler=sampler, 
-        num_workers=4,
+        sampler=sampler,
+        num_workers=NUM_WORKERS,
         pin_memory=True,
-        shuffle=False,
     )
 
+    
+    # =========================
+    # MODEL
+    # =========================
     print("DEBUG: Initializing model...")
     model_config = AutoConfig.from_pretrained(GPT2_CONFIG_DIR)
+
+    if not hasattr(model_config, "loss_type"):
+        model_config.loss_type = "ForCausalLMLoss" 
+        
     model = AutoModelForCausalLM.from_config(model_config)
 
+    # =========================
+    # DEEPSPEED INIT
+    # =========================
     print("DEBUG: Initializing DeepSpeed engine...")
     deep_speed_engine, optimizer, _, lr_scheduler = deepspeed.initialize(
-        model=model,
-        model_parameters=model.parameters(),
-        config=ds_config,
-    )
+            model=model,
+            model_parameters=model.parameters(),
+            config=ds_config,
+        )
+    
+    print("DEBUG: Checking for checkpoint...")
 
-    print("DEBUG: Starting training...")
-    
-    # Setup timing
-    start_event = torch.cuda.Event(enable_timing=True)
-    end_event = torch.cuda.Event(enable_timing=True)
-    
-    # Training state
-    step = 0  # This is the number of weight updates completed
+    out_file = os.path.join(SCRATCH_DIR, f"stage_{STAGE}_training_log_{str(time.time())}.txt")
+
+    # =========================
+    # RESUME LOGIC 
+    # =========================
+    start_step = 0
+    start_epoch = 0
+
+    resume_dir = checkpoint_dir
+
+    if os.path.exists(resume_dir):
+        load_path, client_state = deep_speed_engine.load_checkpoint(resume_dir,tag=CHECKPOINT_TAG)
+
+        if load_path is not None:
+            print(f"DEBUG: [Rank {dist.get_rank()}] Resumed from {load_path}")
+
+            if client_state:
+                start_step = client_state.get("step", 0)
+                start_epoch = client_state.get("epoch", 0)
+
+            print(f"DEBUG: [Rank {dist.get_rank()}] step={start_step}, epoch={start_epoch}")
+        else:
+            print(f"DEBUG: [Rank {dist.get_rank()}] No checkpoint found → starting fresh")
+    else:
+        print(f"DEBUG: [Rank {dist.get_rank()}] Resume dir not found → starting fresh")
+
+    # =========================
+    # TRAIN STATE
+    # =========================
+    step = start_step
+    epoch = start_epoch
     micro_step = 0
     total_tokens = 0
-    total_training_time = 0
     total_start_time = time.perf_counter()
 
-    # Get total parameters for calculations
-    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    bytes_per_param = 2  # FP16
-    
-    
-    print(f"DEBUG: Starting training loop - Target weight updates: {TOTAL_NUM_WEIGHT_UPDATE_STEPS}")
-    
-    # Training loop
     data_iter = iter(train_dataloader)
-    epoch = 0
-    
-    while step < TOTAL_NUM_WEIGHT_UPDATE_STEPS:
+
+    # ============================
+    # TIMERS
+    # ============================
+    fwd_start = torch.cuda.Event(enable_timing=True)
+    fwd_end   = torch.cuda.Event(enable_timing=True)
+
+    bwd_start = torch.cuda.Event(enable_timing=True)
+    bwd_end   = torch.cuda.Event(enable_timing=True)
+
+    step_start = torch.cuda.Event(enable_timing=True)
+    step_end   = torch.cuda.Event(enable_timing=True)
+
+    iter_start = torch.cuda.Event(enable_timing=True)
+    iter_end   = torch.cuda.Event(enable_timing=True)
+
+    # ============================
+    # TRAINING LOOP
+    # ============================
+    while step < TOTAL_NUM_STEPS:
         try:
             batch = next(data_iter)
         except StopIteration:
@@ -427,185 +533,232 @@ def step_3_training():
             sampler.set_epoch(epoch)
             data_iter = iter(train_dataloader)
             batch = next(data_iter)
-        
-        # Move batch to device
+
+        # Move batch to GPU (non-blocking)
         inputs = {k: v.to(deep_speed_engine.device, non_blocking=True) for k, v in batch.items()}
         if "labels" not in inputs:
             inputs["labels"] = inputs["input_ids"].clone()
         if "attention_mask" not in inputs:
             inputs["attention_mask"] = torch.ones_like(inputs["input_ids"])
-        
-        # Forward pass
+
+        stream = torch.cuda.current_stream()
+
+        torch.cuda.synchronize()
+        iter_start.record(stream)
+
+        # ============================
+        # FORWARD
+        # ============================
+        fwd_start.record(stream)
         outputs = deep_speed_engine(**inputs)
         loss = outputs.loss
-        
-        # Backward pass
-        deep_speed_engine.backward(loss)
-        
-        micro_step += 1
-        
-        # Check if we should update weights
-        if micro_step % GRADIENT_ACCUMULATION == 0:
-            # Start timing for this weight update
-            torch.cuda.synchronize(device=LOCAL_RANK)
-            start_event.record(torch.cuda.current_stream())
-            
-            # Optimizer step
-            deep_speed_engine.step()
-            
-            torch.cuda.synchronize(device=LOCAL_RANK)
-            end_event.record(torch.cuda.current_stream())
-            torch.cuda.synchronize(device=LOCAL_RANK)
-            
-            # Calculate step time
-            step_time = start_event.elapsed_time(end_event)
-            
-            # Calculate throughput
-            tokens_per_step = MICRO_BATCH_SIZE * WORLD_SIZE * GRADIENT_ACCUMULATION * block_size
-            total_tokens += tokens_per_step
-            tokens_per_second = tokens_per_step / (step_time / 1000)
-            
-            # Get metrics only on rank 0 and at profiling steps
-            if global_rank == 0 and (step % PROFILE_PER_STEP == 0 or step == 0):
 
-                # Get memory info
+        torch.cuda.synchronize()
+        fwd_end.record(stream)
+
+        # ============================
+        # BACKWARD
+        # ============================
+        bwd_start.record(stream)
+        deep_speed_engine.backward(loss)
+
+        torch.cuda.synchronize()
+        bwd_end.record(stream)
+
+        micro_step += 1
+
+        # ============================
+        # STEP (COMMUNICATION HAPPENS HERE)
+        # ============================
+        if micro_step % GRADIENT_ACCUMULATION == 0:
+            step_start.record(stream)
+            deep_speed_engine.step()
+            step_end.record(stream)
+
+            iter_end.record(stream)
+            torch.cuda.synchronize()
+
+            # ============================
+            # TIMINGS (ms)
+            # ============================
+            fwd_t = fwd_start.elapsed_time(fwd_end)
+            bwd_t = bwd_start.elapsed_time(bwd_end)
+            step_t = step_start.elapsed_time(step_end)
+            iter_t = iter_start.elapsed_time(iter_end)
+
+            compute_t = fwd_t + bwd_t
+            comm_t = step_t   # Best approximation
+
+            # ============================
+            # THROUGHPUT
+            # ============================
+            tokens_per_iter = MICRO_BATCH_SIZE * WORLD_SIZE * GRADIENT_ACCUMULATION * block_size
+            tokens_per_sec = tokens_per_iter / (iter_t / 1000)
+
+            total_tokens += tokens_per_iter
+
+            # ============================
+            # GPU STATS
+            # ============================
+            if (global_rank == 0 and (step % PROFILE_PER_STEP == 0 or step == 0)) or (step == TOTAL_NUM_STEPS - 1):
+
                 mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
-                allocated_Gb = torch.cuda.memory_allocated(device=LOCAL_RANK) / (1024 ** 3)
-                reserved_Gb = torch.cuda.memory_reserved(device=LOCAL_RANK) / (1024 ** 3)
-                peak_vram_Gb = mem_info.used / (1024 ** 3)
+                allocated_Gb = torch.cuda.memory_allocated() / (1024**3)
+                reserved_Gb = torch.cuda.memory_reserved() / (1024**3)
+                peak_vram_Gb = mem_info.used / (1024**3)
+
                 util = pynvml.nvmlDeviceGetUtilizationRates(handle)
                 temp_c = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
-                
-                # Memory efficiency
-                mem_eff_pct = (allocated_Gb / peak_vram_Gb * 100) if peak_vram_Gb > 0 else 0
-                
-                # Get learning rate and gradient norm
-                lr = deep_speed_engine.get_lr()[0] if deep_speed_engine.get_lr() else 5e-5
-                
-                # Get gradient norm safely
-                try:
-                    print("DEBUG: Attempting to get global gradient norm...")
-                    grad_norm = deep_speed_engine.get_global_grad_norm()
-                    if grad_norm is None:
-                        grad_norm = 0.0
-                    print(f"DEBUG: Gradient norm obtained: {grad_norm}")
-                except:
-                    grad_norm = 0.0
 
-                # Calculate approximate FLOPs (simple estimation)
-                # For GPT-2: ~6 * params * tokens per step
-                estimated_flops = 6 * total_params * tokens_per_step
-                gpu_peak_tflops = 312  # A100 FP16 peak
-                mfu_pct = ((estimated_flops / 1e12) / gpu_peak_tflops * 100) if gpu_peak_tflops > 0 else 0
-                
-                # Communication volume (theoretical)
-                multiplier = 3 if STAGE == 3 else 2
-                step_vol_gb = (total_params * bytes_per_param * multiplier) / (1024**3)
+                lr = deep_speed_engine.get_lr()[0] if deep_speed_engine.get_lr() else 0.0
 
-                # Try to get DeepSpeed timers (communication breakdown)
-                try:
-                    print("DEBUG: Attempting to get DeepSpeed timers for communication breakdown...")
-                    if hasattr(deep_speed_engine, 'timers'):
-                        timer_names = deep_speed_engine.timers.timer_names if hasattr(deep_speed_engine.timers, 'timer_names') else []
-                        
-                        fwd_t = deep_speed_engine.timers('forward').elapsed(reset=False) * 1000 if 'forward' in timer_names else 0
-                        bwd_t = deep_speed_engine.timers('backward').elapsed(reset=False) * 1000 if 'backward' in timer_names else 0
-                        ag_t = deep_speed_engine.timers('allgather').elapsed(reset=False) * 1000 if 'allgather' in timer_names else 0
-                        rs_t = deep_speed_engine.timers('reduce_scatter').elapsed(reset=False) * 1000 if 'reduce_scatter' in timer_names else 0
-                        step_t = deep_speed_engine.timers('step').elapsed(reset=False) * 1000
-                        
-                        # In Stage 0, DeepSpeed doesn't always split out 'comm' 
-                        # separately from 'backward'. We can estimate it as:
-                        compute_t = fwd_t + bwd_t
-                        comm_t = ag_t + rs_t
-                        comm_t = max(0, step_t - compute_t) 
-                        total_t = compute_t + comm_t
-                    
-                        comm_tax_pct = (comm_t / step_t * 100) if step_t > 0 else 0
-                        comp_comm_ratio = (compute_t / comm_t) if comm_t > 0 else 0
-                        
-                        # Reset timers periodically so the moving average stays fresh
-                        if step % 20 == 0:
-                            deep_speed_engine.timers.log(['forward', 'backward', 'step'])
+                # ============================
+                # METRICS
+                # ============================
+                metrics = {
+                    "stage": STAGE,
+                    "step": step,
+                    "loss": loss.item(),
+                    "lr": lr,
 
-                    else:
-                        fwd_t = bwd_t = ag_t = rs_t = compute_t = comm_t = 0
-                        comm_tax_pct = comp_comm_ratio = 0
-                    print(f"DEBUG: Timers obtained - Forward: {fwd_t:.2f} ms, Backward: {bwd_t:.2f} ms, Allgather: {ag_t:.2f} ms, ReduceScatter: {rs_t:.2f} ms")
-                except Exception as e:
-                    fwd_t = bwd_t = ag_t = rs_t = compute_t = comm_t = 0
-                    comm_tax_pct = comp_comm_ratio = 0
+                    # Timing
+                    "iteration_time_ms": iter_t,
+                    "fwd_ms": fwd_t,
+                    "bwd_ms": bwd_t,
+                    "step_ms": step_t,
 
-                   # Comprehensive output with all metrics
-                output = (
-                    f"METRIC_START STAGE: {STAGE} | STEP: {step} {'='*25}\n"
-                    f"METRIC_PROGRESS: loss={loss.item():.6f}, lr={lr:.8f}, grad_norm={grad_norm:.6f}\n"
-                    f"METRIC_SPEED: step_time_ms={step_time:.2f}, throughput_tps={tokens_per_second:.2f}, util_pct={util.gpu}, temp_c={temp_c}C\n"
-                    f"METRIC_VRAM: alloc_gb={allocated_Gb:.2f}, peak_gb={peak_vram_Gb:.2f}, reserved_gb={reserved_Gb:.2f}, mem_eff_pct={mem_eff_pct:.2f}\n"
-                    f"METRIC_LATENCY: compute_ms={compute_t:.2f}, fwd_ms={fwd_t:.2f}, bwd_ms={bwd_t:.2f}, comm_ms={comm_t:.2f}, ag_ms={ag_t:.2f}, rs_ms={rs_t:.2f}\n"
-                    f"METRIC_RATIOS: comm_tax_pct={comm_tax_pct:.2f}, compute_to_comm={comp_comm_ratio:.2f}, mfu_pct={mfu_pct:.2f}, vol_gb={step_vol_gb:.4f}\n"
-                    f"METRIC_END {'='*10}\n"
-                )
-                print(output, flush=True)
-                
-                # Save to file
-                os.makedirs(os.path.dirname(OUTPUTFILE), exist_ok=True)
+                    # Derived
+                    "compute_ms": compute_t,
+                    "comm_ms": comm_t,
+                    "comm_pct": (comm_t / (compute_t + comm_t + 1e-8)) * 100,
+
+                    # Performance
+                    "throughput_tps": tokens_per_sec,
+
+                    # GPU
+                    "gpu_util": util.gpu,
+                    "temp_c": temp_c,
+
+                    # Memory
+                    "alloc_gb": allocated_Gb,
+                    "reserved_gb": reserved_Gb,
+                    "peak_gb": peak_vram_Gb,
+                }
+
                 with open(OUTPUTFILE, "a") as f:
-                    f.write(output)
-            
-            # # Periodic communication summary (every 10 steps)
-            # if global_rank == 0 and step > 0 and step % REPORT_SUMMARY_STEP == 0:
-            #     try:
-            #         print(f"\n--- Communication Summary at Step {step} ---")
-            #         deepspeed.comm.log_summary()
-            #         print("--- End Communication Summary ---\n")
-            #     except:
-            #         pass
+                    f.write(json.dumps(metrics) + "\n")
 
-            # Checkpointing
+                metrics_log.append(metrics)
+
+                print(
+                    f"[Stage {STAGE} | Step {step}] "
+                    f"Loss={loss.item():.4f} | "
+                    f"Iter={iter_t:.2f}ms | "
+                    f"FWD={fwd_t:.2f} | BWD={bwd_t:.2f} | STEP={step_t:.2f} | "
+                    f"Comm%={metrics['comm_pct']:.2f} | "
+                    f"TPS={tokens_per_sec:.2f} | "
+                    f"VRAM={peak_vram_Gb:.2f}GB | Util={util.gpu}%"
+                )
+
+            # ============================
+            # CHECKPOINT
+            # ============================
             if step > 0 and step % CHECKPOINT_FOR_STEP == 0:
                 deep_speed_engine.save_checkpoint(
-                    checkpoint_dir, 
-                    tag=f"stage{STAGE}_step{step}", 
-                    client_state={'step': step}
+                    checkpoint_dir,
+                    tag=f"global_step{step}",
+                    client_state={
+                        "step": step,
+                        "epoch": epoch
+                    }
                 )
-            
+                print(f"DEBUG: Checkpoint saved at step {step} to {checkpoint_dir}")
+
             step += 1
             micro_step = 0
             
             # Progress indicator
             if global_rank == 0 and step % 10 == 0:
-                print(f"Progress: Weight update {step}/{TOTAL_NUM_WEIGHT_UPDATE_STEPS} completed")
+                print(f"DEBUG: Progress: {step}/{TOTAL_NUM_STEPS} completed")
     
-    # Synchronize all ranks
-    dist.barrier(device_ids=[LOCAL_RANK])
-    
-    # Calculate total training time
-    total_training_time = time.perf_counter() - total_start_time if 'total_start_time' in dir() else 0
-    
+    # ============================
+    # SYNC ALL RANKS
+    # ============================
+    dist.barrier()
+
+    # ============================
+    # TRAINING TIME
+    # ============================
+    total_training_time = time.perf_counter() - total_start_time
+
+    # ============================
+    # GATHER METRICS FROM ALL GPUS
+    # ============================
+    all_metrics = [None] * WORLD_SIZE
+    dist.all_gather_object(all_metrics, metrics_log)
+
     if global_rank == 0:
+        merged = []
+        for m in all_metrics:
+            if m:
+                merged.extend(m)
+
         print(f"\n{'#'*20} FINAL STAGE {STAGE} REPORT {'#'*20}")
         print(f"Total Training Time: {total_training_time:.2f} seconds")
         print(f"Total Tokens Processed: {total_tokens}")
-        print(f"Total Weight Updates: {step}")
+        print(f"Total Steps: {step}")
+        print(f"Total weight updates: {TOTAL_NUM_STEPS // GRADIENT_ACCUMULATION}")
         print(f"{'#'*50}")
 
-    # Save model
+        metrics_file = os.path.join(SCRATCH_DIR, f"stage_{STAGE}_metrics_{str(time.time())}.json")
+        with open(metrics_file, "w") as f:
+            json.dump(merged, f, indent=2)
+
+    # ============================
+    # SAVE MODEL
+    # ============================
+    # Save a final checkpoint (optional, but good for resuming or evaluation)
+    deep_speed_engine.save_checkpoint(
+                    checkpoint_dir,
+                    tag=f"global_step{step}",
+                    client_state={
+                        "step": step,
+                        "epoch": epoch
+                    }
+                )
+               
     if global_rank == 0:
         os.makedirs(hf_output_dir, exist_ok=True)
-        deep_speed_engine.module.save_pretrained(hf_output_dir)
-        print(f"DEBUG: Model saved to {hf_output_dir}")
 
-    # Cleanup
-    del deep_speed_engine, model
-    
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize(device=LOCAL_RANK)
+        if STAGE == 0:
+            deep_speed_engine.module.save_pretrained(hf_output_dir)
+        else:
+            state_dict = get_fp32_state_dict_from_zero_checkpoint(
+                checkpoint_dir,
+                tag=f"global_step{step}"
+            )
+            config = AutoConfig.from_pretrained(GPT2_CONFIG_DIR)
+            if not hasattr(config, "loss_type"):
+                config.loss_type = "ForCausalLMLoss"
+            model = AutoModelForCausalLM.from_config(config)
+            model.load_state_dict(state_dict)
+            model.save_pretrained(hf_output_dir)
+
+        print(f"Model saved to {hf_output_dir}")
+
+    # ============================
+    # CLEANUP
+    # ============================
+    del deep_speed_engine
+    del model
+
+    torch.cuda.empty_cache()
+
+    dist.barrier()
 
     print(f"\nZeRO Stage {STAGE} completed.")
     print(f"Checkpoint directory: {checkpoint_dir}")
-    
+
     return checkpoint_dir
 
 
@@ -643,282 +796,182 @@ Evaluate the trained model and multiple checkpoints to track progress and qualit
 
 #######################################
 ###!@4 START ANSWER STEP 4
-def _concat_input_ids(test_dataset) -> torch.Tensor:
-    """
-    Concatenate the 'input_ids' from the test dataset into a single 1-D tensor.
 
-    Args:
-        test_dataset: A HuggingFace Dataset object that contains a column named 'input_ids', 
-                      where each entry is a list or tensor of token IDs.
-    """
-    print(f"DEBUG: Concatenating test dataset input_ids...", flush=True)
-    rows = test_dataset["input_ids"]
-    parts = []
-    for row in rows:
-        if isinstance(row, torch.Tensor):
-            parts.append(row.reshape(-1).long())
-        else:
-            parts.append(torch.tensor(row, dtype=torch.long))
+# =========================================================
+# DATA PREPARATION
+# =========================================================
+def _concat_input_ids(dataset) -> torch.Tensor:
+    """Concatenate 'input_ids' from dataset into a single 1-D tensor."""
+    print("DEBUG: Concatenating dataset...", flush=True)
+    rows = dataset["input_ids"]
+    parts = [torch.tensor(row, dtype=torch.long) if not isinstance(row, torch.Tensor) 
+             else row.reshape(-1).long() for row in rows]
     res = torch.cat(parts)
-    print(f"DEBUG: Concatenation complete. Total tokens: {res.size(0)}", flush=True)
     return res
 
-def _compute_perplexity(
-    model: torch.nn.Module,
-    encodings: torch.Tensor,
-    stride: int = 512,
-    max_length: int = 512,
-) -> float:
-    """
-    Sliding-window perplexity on a pre-tokenised 1-D token tensor.
+# =========================================================
+# PERPLEXITY (OPTIMIZED SLIDING WINDOW)
+# =========================================================
+def _compute_perplexity(model, encodings, rank, stride=512, max_length=512):
+    """Computes total loss and token count for local encodings."""
+    device = next(model.parameters()).device
+    seq_len = encodings.size(0)
+    total_loss = 0.0
+    total_tokens = 0
 
-    Args:
-        model: The language model to evaluate.
-        encodings: A 1-D tensor of token IDs representing the test dataset.
-        stride: The step size for the sliding window. Determines how much we move forward for each evaluation step.
-        max_length: The maximum sequence length that the model can process. This determines the size of the sliding window.
-    """
-    sequence_length = encodings.size(0)
-    device  = next(model.parameters()).device
-    average_loss  = 0.0
-    total_target_tokens = 0
- 
-    with torch.no_grad():
-        for i in range(0, sequence_length, stride):
-            if i % 5000 == 0: # Print every 5000 tokens to keep logs clean but informative
-                print(f"  > PPL Progress: {i}/{sequence_length} tokens evaluated...", flush=True)
-            # For each window, we determine the actual target tokens that will be scored, 
-            # which is the last `trg_len` tokens of the window
-            begin_location = max(i + stride - max_length, 0)
-            end_location = min(sequence_length, i + stride)
+    # Ensure we have enough tokens to run at least one window
+    if seq_len < max_length:
+        return 0.0, 0
 
-            # We score only the last `current_length` tokens of the window, 
-            # which is the overlap region that moves forward with each stride.
-            current_length = end_location - i                     
+    for i in tqdm.tqdm(
+        range(0, seq_len, stride), 
+        desc=f"GPU {rank}", 
+        position=rank,  # Stacks bars vertically based on GPU ID
+        leave=False,     # Clears the bar when that checkpoint is done
+        dynamic_ncols=True,
+        disable=(rank != 0)  # Only show progress bar on rank 0 to reduce clutter
+    ):
+        begin = max(i + stride - max_length, 0)
+        end = min(seq_len, i + stride)
+        trg_len = end - i  # Tokens being predicted in this window
 
-            # Prepare input IDs for the current window
-            # Extract the slice
-            chunk = encodings[begin_location:end_location]
+        input_ids = encodings[begin:end].unsqueeze(0).to(device)
+        target_ids = input_ids.clone()
+        
+        # We only want to compute loss on the 'new' tokens (the stride)
+        # Mask labels that are part of the 'context' but not the 'target'
+        target_ids[:, :-trg_len] = -100
 
-            # Ensure it's a tensor, then unsqueeze and move to device
-            input_ids = chunk.clone().detach().unsqueeze(0).to(device)
+        # Create a mask of 1s (since we aren't using padding tokens in our concat logic)
+        attn_mask = torch.ones_like(input_ids).to(device)
 
-            # Label preparation: We want to compute the loss only on the last `trg_len` tokens of the window
-            target_ids = input_ids.clone()
+        outputs = model(input_ids, attention_mask=attn_mask, labels=target_ids)
+        loss = outputs.loss.detach().cpu().float()
+        
+        total_loss += loss.item() * trg_len
+        total_tokens += trg_len
 
-            # Mask out the context tokens (the first part of the window) by setting them to -100, 
-            # which is the ignore index in PyTorch's CrossEntropyLoss.
-            target_ids[:, :-current_length] = -100 
- 
-            outputs = model(input_ids, labels=target_ids)
+    return total_loss, total_tokens
 
-            # We move the NLL sum to CPU immediately to avoid accumulating large tensors on GPU,
-            # which can lead to OOM errors on large test sets. This way, we keep only the final
-            # scalar NLL sums on CPU, which is memory efficient.
-            cur_loss = outputs.loss.detach().cpu() * current_length
-
-            average_loss += cur_loss.item() 
-
-            # We accumulate the total number of target tokens across all windows to get the correct denominator for perplexity
-            total_target_tokens += current_length
-
-    average_loss = average_loss / total_target_tokens
-
-    # Compute perplexity: exp(average_loss) gives us the perplexity, which is the exponentiation
-    #  of the average negative log-likelihood per token.
-    perplexity = np.exp(average_loss)
-
-    return float(perplexity)
- 
-
-def _generate_sample(model, tokenizer, prompt, max_new_tokens=50):
-    # 1. Encode with return_tensors='pt' and ensure it's on the right device
+# =========================================================
+# TEXT GENERATION
+# =========================================================
+def _generate_sample(model, tokenizer, prompt):
+    """Generate 50 tokens to qualitatively assess model quality."""
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-    
-    # 2. Check if encoding actually produced tokens
-    if inputs["input_ids"].shape[1] == 0:
-        return "Error: Empty input_ids produced during tokenization."
-
-    # 3. Generate with explicit attention_mask
-    with torch.no_grad():
-        output_ids = model.generate(
-            input_ids=inputs["input_ids"],
-            attention_mask=inputs.get("attention_mask"), # Standard practice
-            max_new_tokens=max_new_tokens,
+    with torch.inference_mode():
+        output = model.generate(
+            **inputs,
+            max_new_tokens=50,
             do_sample=True,
             top_k=50,
             top_p=0.95,
             pad_token_id=tokenizer.pad_token_id,
             eos_token_id=tokenizer.eos_token_id
         )
-    
-    # 4. Decode the result
-    return tokenizer.decode(output_ids[0], skip_special_tokens=True)
+    return tokenizer.decode(output[0], skip_special_tokens=True)
 
+# =========================================================
+# MAIN EVALUATION FUNCTION
+# =========================================================
 def step_4_evaluation(checkpoint_dir):
-    """
-    Evaluate perplexity and generate samples for multiple checkpoints.
-    """
-    print(f">>> Starting Step 4: Evaluation on {checkpoint_dir}...")
-    
-    ## start your edits here  =================
-
-    #######################################
     if not dist.is_initialized():
-        raise RuntimeError(
-            "step_4_evaluation requires an initialised process group. "
-            "Call deepspeed.init_distributed() before this function."
-        )
- 
+        print("Distributed environment not found. Please run via deepspeed/torchrun.")
+        return
+
     rank = dist.get_rank()
     world_size = dist.get_world_size()
+    device = torch.device(f"cuda:{rank % torch.cuda.device_count()}")
 
-
+    # ---------------- CONFIG ----------------
     STRIDE = 512
     MAX_LENGTH = 512
-    TEST_PROMPT = "Once upon a time"
-    RESULTS_FILE = os.path.join(checkpoint_dir, "perplexity_results.json")
- 
-    # Discover checkpoints in the directory.
-    all_checkpoints = sorted(
-        d for d in os.listdir(checkpoint_dir)
-        if os.path.isdir(os.path.join(checkpoint_dir, d))
-    )
+    PROMPT = "Once upon a time"
+    RESULTS_PATH = os.path.join(checkpoint_dir, f"perplexity_results_{str(time.time())}.json")
+    TOKENIZER_DIR = "/mnt/data/ds256_2026/as2/gpt2_tokenizer"
 
-    if not all_checkpoints:
-        if rank == 0:
-            print("No checkpoints found — nothing to evaluate.")
-        return
- 
-    # Partition evenly across ranks (round-robin).
-    my_checkpoints = [ all_checkpoints[i] for i in range(len(all_checkpoints)) if i % world_size == rank ]
- 
-    if rank == 0:
-        print(f"Total checkpoints: {len(all_checkpoints)}")
-
-    print(f"Rank {rank} evaluating: {my_checkpoints}")
- 
-    # Shared resources (loaded once per rank)
-    MODEL_CONFIG = AutoConfig.from_pretrained(GPT2_CONFIG_DIR)
-    tokenizer = AutoTokenizer.from_pretrained(GPT2_CONFIG_DIR)
-
-    print(f"DEBUG: Tokenizer loaded. Special tokens - pad: {tokenizer}")
-
+    # ---------------- LOAD RESOURCES ----------------
+    tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_DIR, local_files_only=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
- 
-    test_dataset = load_from_disk(final_test_dataset)
+    
+    config = AutoConfig.from_pretrained(GPT2_CONFIG_DIR)
+    if not hasattr(config, "loss_type"):
+        config.loss_type = "ForCausalLMLoss" 
+    
+    dataset = load_from_disk(final_test_dataset)
+    all_encodings = _concat_input_ids(dataset)
 
-    # FIX 3: robust concatenation
-    encodings = _concat_input_ids(test_dataset)
- 
-    device = torch.device(f"cuda:{torch.cuda.current_device()}"
-                          if torch.cuda.is_available() else "cpu")
- 
-    # Evaluate each assigned checkpoint
-    local_results: list[dict] = []
- 
-    for checkpoint_tag in my_checkpoints:
-        # Add a stricter check inside your loop
-        ckpt_path = os.path.join(checkpoint_dir, checkpoint_tag)
+    # ---------------- PARTITION DATA & CHECKPOINTS ----------------
+    # Assign specific checkpoints to this rank
+    all_checkpoints = sorted([d for d in os.listdir(checkpoint_dir) 
+                             if os.path.isdir(os.path.join(checkpoint_dir, d))])
+    my_checkpoints = [ckpt for i, ckpt in enumerate(all_checkpoints) if i % world_size == rank]
 
-        # Ensure it's a real DS checkpoint by looking for a 'latest' file or a .pt file
-        if not any(fname.endswith('.pt') or fname == 'latest' for fname in os.listdir(ckpt_path)):
-            print(f"Skipping {checkpoint_tag}, not a valid DeepSpeed checkpoint.")
-            continue
+    local_results = []
 
-        print(f"[Rank {rank}] Evaluating checkpoint: {checkpoint_tag}")
-
+    # ---------------- EVALUATION LOOP ----------------
+    for ckpt in my_checkpoints:
+        print(f"[Rank {rank}] Evaluating {ckpt}...")
+        
+        # Load Model Weights
         if STAGE == 0:
-            print(f"DEBUG: Loading checkpoint from {ckpt_path} for evaluation...")
-
-            # --- REPLACE THE DEEPSPEED UTILITY WITH THIS ---
-            model_ckpt_path = os.path.join(ckpt_path, "mp_rank_00_model_states.pt")
-            
-            print(f"DEBUG: Looking for model checkpoint at {model_ckpt_path}...")
-            # Load the checkpoint file
-            # 'map_location' ensures it loads to the current GPU correctly
-            full_ckpt = torch.load(model_ckpt_path, map_location=device)
-            print(f"DEBUG: Checkpoint loaded. Keys in checkpoint: {list(full_ckpt.keys())}")
-            # DeepSpeed saves a dict; the actual weights are under the 'module' key
-            if 'module' in full_ckpt:
-                state_dict = full_ckpt['module']
-            else:
-                state_dict = full_ckpt
-            # -----------------------------------------------
-
+            ckpt_path = os.path.join(checkpoint_dir, ckpt, "mp_rank_00_model_states.pt")
+            state = torch.load(ckpt_path, map_location="cpu")
+            state_dict = state["module"] if "module" in state else state
         else:
+            # For ZeRO-1/2/3, we reconstruct the FP32 weights
+            state_dict = get_fp32_state_dict_from_zero_checkpoint(checkpoint_dir, tag=ckpt)
 
-            # Load the model state dict from the DeepSpeed checkpoint. 
-            # We need to gather the full model state on this rank because DeepSpeed checkpoints 
-            # are sharded across ranks, and for evaluation we need the complete model parameters 
-            # to compute perplexity and generate samples.
-            print(f"DEBUG: Loading full model state dict from DeepSpeed checkpoint for {checkpoint_tag}...")
-            state_dict = get_fp32_state_dict_from_zero_checkpoint(
-                checkpoint_dir, checkpoint_tag
-            )
-            print(f"DEBUG: State dict loaded for {checkpoint_tag}. Keys: {list(state_dict.keys())[:5]}...")
-
-        # Initialize the model and load the state dict. 
-        # We use the same config for all checkpoints since they are from the same training run.
-        model = AutoModelForCausalLM.from_config(MODEL_CONFIG)
+        model = AutoModelForCausalLM.from_config(config)
         model.load_state_dict(state_dict)
         model.to(device).half().eval()
 
- 
-        # Metrics
-        print(f"[Rank {rank}] Running PPL for {checkpoint_tag}...", flush=True)
-        perplexity = _compute_perplexity(model, encodings, STRIDE, MAX_LENGTH)
-        
-        print(f"[Rank {rank}] Generating sample for {checkpoint_tag}...", flush=True)
-        generated_response = _generate_sample(model, tokenizer, TEST_PROMPT)
+        with torch.inference_mode():
+            # 1. Perplexity Calculation
+            # We use the full test dataset here for consistency across ranks 
+            # (or partition all_encodings if the dataset is massive)
+            loss_sum, token_count = _compute_perplexity(model, all_encodings, rank, STRIDE, MAX_LENGTH)
+            avg_loss = loss_sum / token_count if token_count > 0 else 0
+            ppl = float(np.exp(avg_loss))
+
+            # 2. Generation Sample
+            response = _generate_sample(model, tokenizer, PROMPT)
 
         local_results.append({
-            "checkpoint": checkpoint_tag,
-            "perplexity": perplexity,
-            "sample": {"prompt": TEST_PROMPT, "response": generated_response},
+            "checkpoint": ckpt,
+            "perplexity": round(ppl, 4),
+            "sample": {
+                "prompt": PROMPT,
+                "response": response
+            }
         })
- 
-        # Free GPU memory before loading the next checkpoint.
+
+        # Memory Cleanup
         del model, state_dict
+        gc.collect()
         torch.cuda.empty_cache()
-        gc.collect()
 
-        # Force Python garbage collection for safety
-        gc.collect()
- 
-    # Aggregate across all ranks
-    all_gathered: list[list[dict] | None] = [None] * world_size
+    # ---------------- AGGREGATION ----------------
+    # Gather results from all ranks
+    gathered_results = [None for _ in range(world_size)]
+    dist.all_gather_object(gathered_results, local_results)
 
-    # This will gather the local_results list from each rank into the all_gathered list on every rank.
-    dist.all_gather_object(all_gathered, local_results)
-    
-    # Only rank 0 will process the gathered results and save to a JSON file. 
-    # This avoids redundant file writing and ensures a single source of truth for the evaluation results.
     if rank == 0:
-        flat_results: list[dict] = []
-        for res_list in all_gathered:
-            if res_list:
-                flat_results.extend(res_list)
- 
-        # Sort for deterministic output regardless of rank assignment.
-        flat_results.sort(key=lambda r: r["checkpoint"])
+        # Merge list of lists into one final list
+        final_list = [item for sublist in gathered_results if sublist for item in sublist]
+        final_list.sort(key=lambda x: x["checkpoint"])
 
-        # Save the aggregated results to a JSON file for later analysis and reporting.
-        with open(RESULTS_FILE, "w") as f:
-            json.dump(flat_results, f, indent=4)
- 
-        print(f"\nDEBUG: Evaluation complete. Results saved to {RESULTS_FILE}")
+        with open(RESULTS_PATH, "w") as f:
+            json.dump(final_list, f, indent=4)
 
-        for r in flat_results:
-            print(f"  {r['checkpoint']}: PPL = {r['perplexity']:.2f}")
+        print("\n" + "="*30)
+        print("EVALUATION COMPLETE")
+        for res in final_list:
+            print(f"Checkpoint: {res['checkpoint']} | PPL: {res['perplexity']}")
+        print("="*30)
 
-    ## end your edits here  =================
-
-    return
-
-###!@4 END ANSWER STEP 4
-    
+    dist.barrier()
 
 # ─────────────────────────────────────────────────────────────────
 # START: Main pipeline (Distributed Training & Eval) (DO NOT MODIFY)
@@ -955,7 +1008,7 @@ if __name__ == "__main__":
     # Step 3: Train GPT-2-Small
     checkpoint_dir = step_3_training()
 
-    # Step 4: Evaluate model and checkpoints
+    # # Step 4: Evaluate model and checkpoints
     if checkpoint_dir and os.path.exists(checkpoint_dir):
         step_4_evaluation(checkpoint_dir)
 

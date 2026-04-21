@@ -127,6 +127,93 @@
             "prompt": "Once upon a time",
             "response": "Once upon a time a and of.en isS,, that\n,.\n various the\ufffd the the,\n the,\n a,\n\n.,ing.,, the,\n\n.,, in\n./ the \ufffd a in it"
         }
+    },
+    {
+        "checkpoint": "global_step1024",
+        "perplexity": 3116.6259,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time they, and a1,\n,,/\n-. &,\n and-] and and this) an or,. of the and it-\n not or, they can\n a is2 they are a, would and the\n"
+        }
+    },
+    {
+        "checkpoint": "global_step1088",
+        "perplexity": 3317.3496,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time to, and a1.\n in an/\n-.\n-\n and-\n and and this) anC,. of the and it-\n not or- they can\n a is2 they to -, would and the\n"
+        }
+    },
+    {
+        "checkpoint": "global_step1120",
+        "perplexity": 3430.97,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time to, and a1.\no,/\n-.\n-\n a-\n and and this) anC,. of the and it-\n not or- they can\n a is2 they to a, not and the\n"
+        }
+    },
+    {
+        "checkpoint": "global_step512",
+        "perplexity": 4640.0169,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time they, and, no,\n,, the\n-. no,\n and,\n and the this, an\n,,, the.,]\n not or, they,\n a is2.\n a,. and the\n"
+        }
+    },
+    {
+        "checkpoint": "global_step576",
+        "perplexity": 3933.549,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a timeS as,\n,,.\n\n\n the and\n the \ufffd the\n,, the2 the\ufffd.. not, theor\n\n\n\n nextC\n or,\n the\n.\n,\n \ufffd.\n.\n"
+        }
+    },
+    {
+        "checkpoint": "global_step640",
+        "perplexity": 3475.5678,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a timeS as,\n,,.\n]\n the.\n the D the\n,, the2 the\ufffd.. not, the this\n\n\n\n\nC\n or,, the\n. the,\n be.\n.\n"
+        }
+    },
+    {
+        "checkpoint": "global_step704",
+        "perplexity": 3143.0776,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a timeS as,\n,,.\n]\n the and\n the \ufffd the\n S, the2 the\ufffd.. not, the this\n\n and\n\nC\n or,\n the\n. the,\n \ufffd.\n.\n"
+        }
+    },
+    {
+        "checkpoint": "global_step768",
+        "perplexity": 2980.0097,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a timeS as,\n, that also\n system\n the and\n the \ufffd the\n,, the2 the\ufffd.. not, the this\n\n and\n\nC\n or,S the\n. the,\n be.\n.\n"
+        }
+    },
+    {
+        "checkpoint": "global_step832",
+        "perplexity": 2885.7096,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time S this. used the they, of\n the a, of are in\n\n... the the to that\n not this the you their\n\n an the.\n, is- or not\ning S,.2 \ufffd, the"
+        }
+    },
+    {
+        "checkpoint": "global_step896",
+        "perplexity": 2912.5909,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time this this. used the they, of\n the a, of are in\n\n... the the to that\n not this the ( their\n\n an the system.\n A- or not Weing the,.2 \ufffd or the"
+        }
+    },
+    {
+        "checkpoint": "global_step960",
+        "perplexity": 2971.0036,
+        "sample": {
+            "prompt": "Once upon a time",
+            "response": "Once upon a time this this. to\ufffd they, of\n the a, of are in\n an... the the to that\n not this the you their\n to an the of you, is- or not Weing the,.2 \ufffd or the"
+        }
     }
-    
 ]

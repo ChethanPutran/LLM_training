@@ -1682,7 +1682,4 @@
 [Rank 0] time (ms) | compute_norm: 0.41 | overflow_check: 3.25 | unscale_and_clip: 0.62 | basic_step: 2.15 | update_fp16: 0.76
 [Rank 0] time (ms) | fwd_microstep: 305.58 | bwd_microstep: 11080.91 | bwd_inner_microstep: 493.33 | bwd_allreduce_microstep: 10587.05 | step_microstep: 9.20
 [Rank 0] time (ms) | fwd: 2480.66 | bwd: 14542.82 | bwd_inner: 3953.16 | bwd_allreduce: 10587.33 | step: 9.51
-[Stage 0 | Step 1119] Loss=8.0475 | Iter=1436.96ms | FWD=38.17 | BWD=1384.68 | STEP=14.11 | Comm%=0.98 | TPS=182429.50 | VRAM=10.34GB | Util=100%
-[Stage 0 | Step 1119] Loss=8.0762 | Iter=1438.24ms | FWD=38.10 | BWD=1385.68 | STEP=14.44 | Comm%=1.00 | TPS=182266.98 | VRAM=10.33GB | Util=98%
 [Stage 0 | Step 1119] Loss=8.0208 | Iter=1438.87ms | FWD=38.20 | BWD=1386.56 | STEP=14.09 | Comm%=0.98 | TPS=182187.88 | VRAM=11.19GB | Util=95%
-[Stage 0 | Step 1119] Loss=8.2515 | Iter=1438.37ms | FWD=37.84 | BWD=1386.30 | STEP=14.22 | Comm%=0.99 | TPS=182250.60 | VRAM=10.32GB | Util=100%

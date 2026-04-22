@@ -91,25 +91,17 @@ GPT2_CONFIG_DIR = os.path.join(shared_dir, "model_config")
 # Local output directories (relative to working directory)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--stage", type=int)
-parser.add_argument("--outputfile", type=str)
-parser.add_argument("--check_point_tag", type=str, default=None)
+parser.add_argument("--stage", type=int, default=0, choices=[0, 1, 2, 3], help="ZeRO optimization stage to run")
+parser.add_argument("--outputfile", type=str, default="training_metrics.jsonl", help="File to log training metrics (JSON Lines format)")
+parser.add_argument("--check_point_tag", type=str, default=None, help="Tag for checkpointing (e.g., 'latest', 'best', or custom tag). If not provided, defaults to None and will use DeepSpeed's default naming.")
 args = parser.parse_args()
 
 STAGE = args.stage
 OUTPUTFILE = args.outputfile
 CHECKPOINT_TAG = args.check_point_tag
 
-
-OUTPUTS = [
-    f"/scratch/chethan1/SSDS/llm_training/outputs/stage_0/checkpoints/",
-    f"/scratch/chethan1/SSDS/llm_training/outputs/stage_1/checkpoints/",
-    f"/scratch/chethan1/SSDS/llm_training/outputs/stage_2/checkpoints/",
-    f"/scratch/chethan1/SSDS/llm_training/outputs/stage_3/checkpoints/",
-]
-
-DS_CONFIG_PATH = f"/scratch/chethan1/SSDS/llm_training/outputs/stage_{STAGE}/ds_config.json"
 BASE_DIR = os.path.abspath(f"/scratch/chethan1/SSDS/llm_training/outputs/stage_{STAGE}")
+DS_CONFIG_PATH = f"/scratch/chethan1/SSDS/llm_training/outputs/stage_{STAGE}/ds_config.json"
 DATA_DIR = os.path.abspath(f"/scratch/chethan1/SSDS/llm_training/outputs/")
 SCRATCH_DIR =  os.path.abspath("/scratch/chethan1/SSDS/llm_training/results")
 
@@ -229,15 +221,11 @@ def build_deepspeed_config(
     scratch_dir: str
 ) -> dict:
     ds_config = {
-        # =========================
-        # BATCHING (CRITICAL)
-        # =========================
+        # BATCHING
         "train_micro_batch_size_per_gpu": micro_batch_size,
         "gradient_accumulation_steps": gradient_accumulation,
 
-        # =========================
-        # OPTIMIZER (GPT-style)
-        # =========================
+        # OPTIMIZER
         "optimizer": {
             "type": "AdamW",
             "params": {
@@ -248,9 +236,7 @@ def build_deepspeed_config(
             },
         },
 
-        # =========================
-        # LR SCHEDULER (IMPORTANT)
-        # =========================
+        # LR SCHEDULER 
         "scheduler": {
             "type": "WarmupDecayLR",
             "params": {
@@ -261,9 +247,7 @@ def build_deepspeed_config(
             },
         },
 
-        # =========================
         # NUMERICS
-        # =========================
         "fp16": {
             "enabled": True,
             "loss_scale": 0,
@@ -271,9 +255,7 @@ def build_deepspeed_config(
         },
 
         "gradient_clipping": 1.0,
-        # =========================
-        # LOGGING (VERY IMPORTANT)
-        # =========================
+        # LOGGING 
         "steps_per_print": 1,
         "wall_clock_breakdown": True,
         "monitor": {
@@ -291,9 +273,7 @@ def build_deepspeed_config(
             }
         },
 
-        # =========================
         # PROFILING
-        # =========================
         "flops_profiler": {
             "enabled": True,
             "profile_step": 20,
@@ -314,9 +294,7 @@ def build_deepspeed_config(
         },
     }
 
-    # =========================
     # ZeRO OPTIMIZATION
-    # =========================
     if stage > 0:
         ds_config["zero_optimization"] = {
             "stage": stage,
@@ -334,8 +312,7 @@ def build_deepspeed_config(
         ds_config["zero_optimization"].update({
             "sub_group_size": int(1e9),
             "stage3_prefetch_bucket_size": int(5e8),
-            "stage3_param_persistence_threshold": int(1e5),
-            # add offload_optimizer / offload_param here only when experimenting with CPU offload
+            "stage3_param_persistence_threshold": int(1e5)
         })
 
     return ds_config
@@ -351,24 +328,16 @@ def step_3_training():
     date_str = now_dt.strftime("%Y-%m-%d")
     time_str = now_dt.strftime("%H-%M-%S")
     # checkpoint_dir = os.path.join(BASE_DIR, "checkpoints", date_str, time_str)
-
+    # hf_output_dir  = os.path.join(BASE_DIR, "gpt2_trained", date_str, time_str)
     checkpoint_dir = os.path.join(BASE_DIR, "checkpoints")
     hf_output_dir  = os.path.join(BASE_DIR, "gpt2_trained")
+    ## start your edits here  =================
 
-    # date_str = "2026-04-14"
-    # time_str = "02-17-44"
-
-    # return "/scratch/chethan1/SSDS/llm_training/outputs/stage_0/checkpoints/2026-04-16/01-15-28/"
-    # if STAGE == 3:
-    #     return os.path.join(BASE_DIR, date_str, time_str)
-    # return os.path.join(BASE_DIR, "gpt2_trained", date_str, time_str)
     print(f"DEBUG: \n{'='*80}")
     print(f"DEBUG: Training ZeRO Stage {STAGE}")
     print(f"DEBUG: {'='*80}")
 
-    # =========================
     # ENV + DEVICE SETUP
-    # =========================
 
     # Initialize distributed FIRST
     if not dist.is_initialized():
@@ -386,14 +355,9 @@ def step_3_training():
         f"DEBUG: WORLD_SIZE={os.environ.get('WORLD_SIZE')}",
         flush=True
     )
-    # Now safe to query
-    
-
     print(f"DEBUG: World Size: {WORLD_SIZE}, Local Rank: {LOCAL_RANK}")
 
-    # =========================
     # TRAINING PARAMS
-    # =========================
     TOTAL_NUM_STEPS = 1120
     GRADIENT_ACCUMULATION = 8
     MICRO_BATCH_SIZE = 16
@@ -403,15 +367,11 @@ def step_3_training():
 
     metrics_log = []
 
-    # =========================
     # NVML INIT
-    # =========================
     pynvml.nvmlInit()
     handle = pynvml.nvmlDeviceGetHandleByIndex(torch.cuda.current_device())
 
-    # =========================
-    # CONFIG (FIXED)
-    # =========================
+    # CONFIG
     print("DEBUG: Generating DeepSpeed configuration...")
 
     ds_config = build_deepspeed_config(
@@ -423,9 +383,11 @@ def step_3_training():
         scratch_dir=SCRATCH_DIR
     )
 
-    # =========================
+    # Save config for reference
+    with open(DS_CONFIG_PATH, "w") as f:
+        json.dump(ds_config, f, indent=2)
+
     # DATASET
-    # =========================
     print("DEBUG: Loading dataset...")
     raw_dataset = load_from_disk(final_train_dataset)
     dataset = raw_dataset.with_format("torch")
@@ -447,9 +409,7 @@ def step_3_training():
     )
 
     
-    # =========================
     # MODEL
-    # =========================
     print("DEBUG: Initializing model...")
     model_config = AutoConfig.from_pretrained(GPT2_CONFIG_DIR)
 
@@ -458,9 +418,7 @@ def step_3_training():
         
     model = AutoModelForCausalLM.from_config(model_config)
 
-    # =========================
     # DEEPSPEED INIT
-    # =========================
     print("DEBUG: Initializing DeepSpeed engine...")
     deep_speed_engine, optimizer, _, lr_scheduler = deepspeed.initialize(
             model=model,
@@ -472,9 +430,7 @@ def step_3_training():
 
     out_file = os.path.join(SCRATCH_DIR, f"stage_{STAGE}_training_log_{str(time.time())}.txt")
 
-    # =========================
     # RESUME LOGIC 
-    # =========================
     start_step = 0
     start_epoch = 0
 
@@ -496,9 +452,7 @@ def step_3_training():
     else:
         print(f"DEBUG: [Rank {dist.get_rank()}] Resume dir not found → starting fresh")
 
-    # =========================
     # TRAIN STATE
-    # =========================
     step = start_step
     epoch = start_epoch
     micro_step = 0
@@ -507,9 +461,7 @@ def step_3_training():
 
     data_iter = iter(train_dataloader)
 
-    # ============================
     # TIMERS
-    # ============================
     fwd_start = torch.cuda.Event(enable_timing=True)
     fwd_end   = torch.cuda.Event(enable_timing=True)
 
@@ -522,9 +474,7 @@ def step_3_training():
     iter_start = torch.cuda.Event(enable_timing=True)
     iter_end   = torch.cuda.Event(enable_timing=True)
 
-    # ============================
     # TRAINING LOOP
-    # ============================
     while step < TOTAL_NUM_STEPS:
         try:
             batch = next(data_iter)
@@ -546,9 +496,7 @@ def step_3_training():
         torch.cuda.synchronize()
         iter_start.record(stream)
 
-        # ============================
         # FORWARD
-        # ============================
         fwd_start.record(stream)
         outputs = deep_speed_engine(**inputs)
         loss = outputs.loss
@@ -556,9 +504,7 @@ def step_3_training():
         torch.cuda.synchronize()
         fwd_end.record(stream)
 
-        # ============================
         # BACKWARD
-        # ============================
         bwd_start.record(stream)
         deep_speed_engine.backward(loss)
 
@@ -567,9 +513,7 @@ def step_3_training():
 
         micro_step += 1
 
-        # ============================
         # STEP (COMMUNICATION HAPPENS HERE)
-        # ============================
         if micro_step % GRADIENT_ACCUMULATION == 0:
             step_start.record(stream)
             deep_speed_engine.step()
@@ -578,9 +522,7 @@ def step_3_training():
             iter_end.record(stream)
             torch.cuda.synchronize()
 
-            # ============================
             # TIMINGS (ms)
-            # ============================
             fwd_t = fwd_start.elapsed_time(fwd_end)
             bwd_t = bwd_start.elapsed_time(bwd_end)
             step_t = step_start.elapsed_time(step_end)
@@ -589,17 +531,13 @@ def step_3_training():
             compute_t = fwd_t + bwd_t
             comm_t = step_t   # Best approximation
 
-            # ============================
             # THROUGHPUT
-            # ============================
             tokens_per_iter = MICRO_BATCH_SIZE * WORLD_SIZE * GRADIENT_ACCUMULATION * block_size
             tokens_per_sec = tokens_per_iter / (iter_t / 1000)
 
             total_tokens += tokens_per_iter
 
-            # ============================
             # GPU STATS
-            # ============================
             if (global_rank == 0 and (step % PROFILE_PER_STEP == 0 or step == 0)) or (step == TOTAL_NUM_STEPS - 1):
 
                 mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
@@ -612,9 +550,7 @@ def step_3_training():
 
                 lr = deep_speed_engine.get_lr()[0] if deep_speed_engine.get_lr() else 0.0
 
-                # ============================
                 # METRICS
-                # ============================
                 metrics = {
                     "stage": STAGE,
                     "step": step,
@@ -660,9 +596,7 @@ def step_3_training():
                     f"VRAM={peak_vram_Gb:.2f}GB | Util={util.gpu}%"
                 )
 
-            # ============================
             # CHECKPOINT
-            # ============================
             if step > 0 and step % CHECKPOINT_FOR_STEP == 0:
                 deep_speed_engine.save_checkpoint(
                     checkpoint_dir,
@@ -681,19 +615,13 @@ def step_3_training():
             if global_rank == 0 and step % 10 == 0:
                 print(f"DEBUG: Progress: {step}/{TOTAL_NUM_STEPS} completed")
     
-    # ============================
     # SYNC ALL RANKS
-    # ============================
     dist.barrier()
 
-    # ============================
     # TRAINING TIME
-    # ============================
     total_training_time = time.perf_counter() - total_start_time
 
-    # ============================
     # GATHER METRICS FROM ALL GPUS
-    # ============================
     all_metrics = [None] * WORLD_SIZE
     dist.all_gather_object(all_metrics, metrics_log)
 
@@ -714,10 +642,8 @@ def step_3_training():
         with open(metrics_file, "w") as f:
             json.dump(merged, f, indent=2)
 
-    # ============================
     # SAVE MODEL
-    # ============================
-    # Save a final checkpoint (optional, but good for resuming or evaluation)
+    # Save a final checkpoint
     deep_speed_engine.save_checkpoint(
                     checkpoint_dir,
                     tag=f"global_step{step}",
@@ -746,9 +672,7 @@ def step_3_training():
 
         print(f"Model saved to {hf_output_dir}")
 
-    # ============================
     # CLEANUP
-    # ============================
     del deep_speed_engine
     del model
 
@@ -759,6 +683,8 @@ def step_3_training():
     print(f"\nZeRO Stage {STAGE} completed.")
     print(f"Checkpoint directory: {checkpoint_dir}")
 
+    ## end your edits here  =================
+    
     return checkpoint_dir
 
 
@@ -797,9 +723,7 @@ Evaluate the trained model and multiple checkpoints to track progress and qualit
 #######################################
 ###!@4 START ANSWER STEP 4
 
-# =========================================================
 # DATA PREPARATION
-# =========================================================
 def _concat_input_ids(dataset) -> torch.Tensor:
     """Concatenate 'input_ids' from dataset into a single 1-D tensor."""
     print("DEBUG: Concatenating dataset...", flush=True)
@@ -809,9 +733,7 @@ def _concat_input_ids(dataset) -> torch.Tensor:
     res = torch.cat(parts)
     return res
 
-# =========================================================
-# PERPLEXITY (OPTIMIZED SLIDING WINDOW)
-# =========================================================
+# PERPLEXITY
 def _compute_perplexity(model, encodings, rank, stride=512, max_length=512):
     """Computes total loss and token count for local encodings."""
     device = next(model.parameters()).device
@@ -853,9 +775,7 @@ def _compute_perplexity(model, encodings, rank, stride=512, max_length=512):
 
     return total_loss, total_tokens
 
-# =========================================================
 # TEXT GENERATION
-# =========================================================
 def _generate_sample(model, tokenizer, prompt):
     """Generate 50 tokens to qualitatively assess model quality."""
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
@@ -871,10 +791,14 @@ def _generate_sample(model, tokenizer, prompt):
         )
     return tokenizer.decode(output[0], skip_special_tokens=True)
 
-# =========================================================
 # MAIN EVALUATION FUNCTION
-# =========================================================
 def step_4_evaluation(checkpoint_dir):
+    """
+    Evaluate perplexity and generate samples for multiple checkpoints.
+    """
+    print(f">>> Starting Step 4: Evaluation on {checkpoint_dir}...")
+    
+    ## start your edits here  =================
     if not dist.is_initialized():
         print("Distributed environment not found. Please run via deepspeed/torchrun.")
         return
@@ -883,14 +807,14 @@ def step_4_evaluation(checkpoint_dir):
     world_size = dist.get_world_size()
     device = torch.device(f"cuda:{rank % torch.cuda.device_count()}")
 
-    # ---------------- CONFIG ----------------
+    # CONFIG
     STRIDE = 512
     MAX_LENGTH = 512
     PROMPT = "Once upon a time"
     RESULTS_PATH = os.path.join(checkpoint_dir, f"perplexity_results_{str(time.time())}.json")
     TOKENIZER_DIR = "/mnt/data/ds256_2026/as2/gpt2_tokenizer"
 
-    # ---------------- LOAD RESOURCES ----------------
+    # LOAD RESOURCES 
     tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_DIR, local_files_only=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -902,7 +826,7 @@ def step_4_evaluation(checkpoint_dir):
     dataset = load_from_disk(final_test_dataset)
     all_encodings = _concat_input_ids(dataset)
 
-    # ---------------- PARTITION DATA & CHECKPOINTS ----------------
+    # PARTITION DATA & CHECKPOINTS
     # Assign specific checkpoints to this rank
     all_checkpoints = sorted([d for d in os.listdir(checkpoint_dir) 
                              if os.path.isdir(os.path.join(checkpoint_dir, d))])
@@ -910,7 +834,7 @@ def step_4_evaluation(checkpoint_dir):
 
     local_results = []
 
-    # ---------------- EVALUATION LOOP ----------------
+    # EVALUATION LOOP 
     for ckpt in my_checkpoints:
         print(f"[Rank {rank}] Evaluating {ckpt}...")
         
@@ -928,14 +852,12 @@ def step_4_evaluation(checkpoint_dir):
         model.to(device).half().eval()
 
         with torch.inference_mode():
-            # 1. Perplexity Calculation
-            # We use the full test dataset here for consistency across ranks 
-            # (or partition all_encodings if the dataset is massive)
+            # Perplexity Calculation
             loss_sum, token_count = _compute_perplexity(model, all_encodings, rank, STRIDE, MAX_LENGTH)
             avg_loss = loss_sum / token_count if token_count > 0 else 0
             ppl = float(np.exp(avg_loss))
 
-            # 2. Generation Sample
+            # Generation Sample
             response = _generate_sample(model, tokenizer, PROMPT)
 
         local_results.append({
@@ -952,7 +874,7 @@ def step_4_evaluation(checkpoint_dir):
         gc.collect()
         torch.cuda.empty_cache()
 
-    # ---------------- AGGREGATION ----------------
+    # AGGREGATION 
     # Gather results from all ranks
     gathered_results = [None for _ in range(world_size)]
     dist.all_gather_object(gathered_results, local_results)
@@ -972,6 +894,13 @@ def step_4_evaluation(checkpoint_dir):
         print("="*30)
 
     dist.barrier()
+
+    ## end your edits here  =================
+
+    return 
+
+###!@4 END ANSWER STEP 4
+
 
 # ─────────────────────────────────────────────────────────────────
 # START: Main pipeline (Distributed Training & Eval) (DO NOT MODIFY)
@@ -1008,7 +937,7 @@ if __name__ == "__main__":
     # Step 3: Train GPT-2-Small
     checkpoint_dir = step_3_training()
 
-    # # Step 4: Evaluate model and checkpoints
+    # Step 4: Evaluate model and checkpoints
     if checkpoint_dir and os.path.exists(checkpoint_dir):
         step_4_evaluation(checkpoint_dir)
 
@@ -1016,8 +945,7 @@ if __name__ == "__main__":
 
 
     dist.destroy_process_group()
-    # print(f"DESTROY DONE: {socket.gethostname()} rank {dist.get_rank()}")
-    print(f"exiting...")
+    print(f"DESTROY DONE: {socket.gethostname()} rank {dist.get_rank()}")
 
     
 # ─────────────────────────────────────────────────────────────────
@@ -1063,4 +991,4 @@ Example Outputs:
         --reservation=<your_reservation_name> \
         -t <time> \
         /apps/run_wrapper.sh <your_script.py>
-''' 
+'''

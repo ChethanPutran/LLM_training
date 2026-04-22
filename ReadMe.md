@@ -241,4 +241,4 @@ Chethan
 
 ## License
 
-This code is for educational purposes only as part of the DS256 course at [Institution Name].
+This code is for educational purposes only as part of the DS256 course at IISC.

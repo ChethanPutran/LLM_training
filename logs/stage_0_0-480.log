@@ -718,4 +718,3 @@
 [Rank 0] time (ms) | compute_norm: 0.41 | overflow_check: 3.23 | unscale_and_clip: 0.62 | basic_step: 2.15 | update_fp16: 0.75
 [Rank 0] time (ms) | fwd_microstep: 305.78 | bwd_microstep: 11046.34 | bwd_inner_microstep: 490.87 | bwd_allreduce_microstep: 10554.97 | step_microstep: 9.12
 [Rank 0] time (ms) | fwd: 2482.14 | bwd: 14509.92 | bwd_inner: 3952.45 | bwd_allreduce: 10555.24 | step: 9.43
-[Stage 0 | Step 479] Loss=8.5964 | Iter=1433.00ms | FWD=37.96 | BWD=1380.94 | STEP=14.09 | Comm%=0.98 | TPS=182933.71 | VRAM=11.19GB | Util=100%

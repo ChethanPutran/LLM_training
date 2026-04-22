@@ -147,7 +147,7 @@
 [Rank 0] time (ms) | fwd_microstep: 305.47 | bwd_microstep: 11092.11 | bwd_inner_microstep: 492.49 | bwd_allreduce_microstep: 10599.22 | step_microstep: 0.05
 [Rank 0] time (ms) | fwd_microstep: 304.59 | bwd_microstep: 11089.54 | bwd_inner_microstep: 492.54 | bwd_allreduce_microstep: 10596.61 | step_microstep: 0.05
 [Rank 0] time (ms) | fwd_microstep: 304.47 | bwd_microstep: 11100.94 | bwd_inner_microstep: 492.10 | bwd_allreduce_microstep: 10608.45 | step_microstep: 0.04
-[Stage 2 | Step 99] Loss=9.6929 | Iter=1426.83ms | FWD=37.88 | BWD=1387.10 | STEP=1.85 | Comm%=0.13 | TPS=183724.33 | VRAM=10.85GB | Util=100%
+[Rank 0] time (ms) | fwd_microstep: 304.47 | bwd_microstep: 11100.94 | bwd_inner_microstep: 492.10 | bwd_allreduce_microstep: 10608.45 | step_microstep: 0.04
 [Stage 2 | Step 100] Loss=10.1237 | Iter=1419.41ms | FWD=37.91 | BWD=1380.41 | STEP=1.08 | Comm%=0.08 | TPS=184685.39 | VRAM=10.09GB | Util=100%
 [Rank 0] time (ms) | fwd_microstep: 302.81 | bwd_microstep: 11043.53 | bwd_inner_microstep: 490.65 | bwd_allreduce_microstep: 10552.48 | step_microstep: 0.03
 [Rank 0] time (ms) | fwd_microstep: 302.57 | bwd_microstep: 11045.09 | bwd_inner_microstep: 491.25 | bwd_allreduce_microstep: 10553.44 | step_microstep: 0.03
@@ -478,7 +478,6 @@
 [Rank 0] time (ms) | optimizer_allgather: 658.98 | optimizer_gradients: 0.34 | optimizer_step: 0.66
 [Rank 0] time (ms) | fwd_microstep: 304.39 | bwd_microstep: 11055.58 | bwd_inner_microstep: 493.10 | bwd_allreduce_microstep: 10561.90 | step_microstep: 671.80
 [Rank 0] time (ms) | fwd: 2433.57 | bwd: 88442.88 | bwd_inner: 3941.90 | bwd_allreduce: 84497.89 | step: 672.12
-[Stage 2 | Step 319] Loss=8.3682 | Iter=2096.92ms | FWD=37.87 | BWD=1382.77 | STEP=676.26 | Comm%=32.25 | TPS=125014.04 | VRAM=10.97GB | Util=100%
 [Rank 0] time (ms) | fwd_microstep: 427.87 | bwd_microstep: 12158.30 | bwd_inner_microstep: 1617.89 | bwd_allreduce_microstep: 10539.94 | step_microstep: 0.04
 [Stage 2 | Step 320] Loss=8.4878 | Iter=1417.83ms | FWD=38.11 | BWD=1378.65 | STEP=1.06 | Comm%=0.07 | TPS=184891.08 | VRAM=10.09GB | Util=100%
 [Rank 0] time (ms) | fwd_microstep: 304.61 | bwd_microstep: 11034.02 | bwd_inner_microstep: 493.47 | bwd_allreduce_microstep: 10540.14 | step_microstep: 0.03
@@ -719,4 +718,3 @@
 [Rank 0] time (ms) | optimizer_allgather: 659.08 | optimizer_gradients: 0.34 | optimizer_step: 0.66
 [Rank 0] time (ms) | fwd_microstep: 304.37 | bwd_microstep: 11120.56 | bwd_inner_microstep: 492.62 | bwd_allreduce_microstep: 10627.37 | step_microstep: 689.68
 [Rank 0] time (ms) | fwd: 2436.06 | bwd: 88932.38 | bwd_inner: 3942.33 | bwd_allreduce: 84987.01 | step: 690.00
-[Stage 2 | Step 479] Loss=7.8014 | Iter=2121.64ms | FWD=38.12 | BWD=1388.43 | STEP=695.08 | Comm%=32.76 | TPS=123557.08 | VRAM=10.12GB | Util=100%

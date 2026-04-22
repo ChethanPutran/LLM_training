@@ -104,6 +104,7 @@ BASE_DIR = os.path.abspath(f"/scratch/chethan1/SSDS/llm_training/outputs/stage_{
 DS_CONFIG_PATH = f"/scratch/chethan1/SSDS/llm_training/outputs/stage_{STAGE}/ds_config.json"
 DATA_DIR = os.path.abspath(f"/scratch/chethan1/SSDS/llm_training/outputs/")
 SCRATCH_DIR =  os.path.abspath("/scratch/chethan1/SSDS/llm_training/results")
+TOKENIZER_DIR = "/mnt/data/ds256_2026/as2/gpt2_tokenizer"
 
 os.makedirs(BASE_DIR, exist_ok=True)
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -812,7 +813,7 @@ def step_4_evaluation(checkpoint_dir):
     MAX_LENGTH = 512
     PROMPT = "Once upon a time"
     RESULTS_PATH = os.path.join(checkpoint_dir, f"perplexity_results_{str(time.time())}.json")
-    TOKENIZER_DIR = "/mnt/data/ds256_2026/as2/gpt2_tokenizer"
+    
 
     # LOAD RESOURCES 
     tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_DIR, local_files_only=True)

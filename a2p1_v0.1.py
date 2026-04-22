@@ -173,7 +173,7 @@ def tokenize_dec(tokenizer):
     def tokenize(texts):
         texts_with_eos = [text + tokenizer.eos_token for text in texts["extracted_text"]]
         
-        # 2. Tokenize the list of strings
+        # Tokenize the list of strings
         tokenized = tokenizer(
             texts_with_eos,
             # truncation=True,  # Truncate sequences that are too long
@@ -195,13 +195,13 @@ def step_1_tokenization():
 
     ## DO NOT MODIFY ##
     tokenizer = AutoTokenizer.from_pretrained(GPT2_TOKENIZER_DIR)
-
-    fields_to_remove = ['url', 'date', 'extracted_text']
-    
     print(tokenizer)
     ## DO NOT MODIFY ##
 
     ## start your edits here  =================
+
+    fields_to_remove = ['url', 'date', 'extracted_text']
+
     datasets.logging.set_verbosity_info()
 
     # Create output directories if they don't exist
@@ -248,7 +248,7 @@ def step_1_tokenization():
     ## end your edits here  =================
 
     return
-      
+
 ###!@1 END ANSWER STEP 1
 
 
@@ -270,6 +270,7 @@ Load tokenized data, group it into sequences of a fixed `block_size`, and save t
 
 #######################################
 ###!@2 START ANSWER STEP 2
+
 def chunk_tokens(examples):
     concatenated = []
     for seq in examples["input_ids"]:
